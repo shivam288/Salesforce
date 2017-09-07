@@ -1,0 +1,558 @@
+@isTest
+private class  TestReminderDetailsController{
+   
+
+  static testMethod void ReminderDetailsControllerTest() {
+
+        // Provider
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c=userinfo.getUserId();
+        insert provider;
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        system.assert(provider.Id != null,'Contact 1 record was created');
+        Self_Scheduling_Site_Settings__c siteSetting = TestUtility.createSite('Test','Customer',false);
+        siteSetting.Self_Scheduling_Provider_Search_Criteria__c = 'firstname';
+        siteSetting.Exclude_to_Following_Providers__c = provider.id;
+        siteSetting.Limit_Open_Appointments__c = 10;
+        //siteSetting.Chatter_Alert_Enabled__c = true;
+        insert siteSetting; 
+        
+        Scheduling_Setting_Line_Item__c item1 = new Scheduling_Setting_Line_Item__c();
+        item1.Field_Label__c = 'Latitude';
+        item1.Field_Name__c = 'latitude';
+        item1.Field_Type__c = 'DOUBLE';
+        item1.Object__c = 'Lead';
+        item1.Online_Scheduling_Process__c = siteSetting.id;
+        item1.Type__c = 'Last Step Custom Fields(Lead)';
+        insert item1;
+        
+        Scheduling_Setting_Line_Item__c item2 = new Scheduling_Setting_Line_Item__c();
+        item2.Field_Label__c = 'Longitude';
+        item2.Field_Name__c = 'longitude';
+        item2.Field_Type__c = 'DOUBLE';
+        item2.Object__c = 'Lead';
+        item2.Online_Scheduling_Process__c = siteSetting.id;
+        item2.Type__c = 'Last Step Custom Fields(Lead)';
+        insert item2;
+        
+        Scheduling_Setting_Line_Item__c item3 = new Scheduling_Setting_Line_Item__c();
+        item3.Field_Label__c = 'First Name';
+        item3.Field_Name__c = 'firstname';
+        item3.Field_Type__c = 'STRING';
+        item3.Object__c = 'Lead';
+        item3.Online_Scheduling_Process__c = siteSetting.id;
+        item3.Type__c = 'Last Step Custom Fields(Lead)';
+        insert item3;
+        
+        Account a = TestUtility.createAccount('Test',true);
+        Contact dummy = new contact(lastname='Dummy Contact', accountId = a.id);
+        insert dummy;
+        
+        lead ld = TestUtility.createLead('Test','test@test.com',true);
+            
+        //insert location
+        Location__c location = TestUtility.createLocation('Test Location',true);
+        system.assert(location.Id != null,'location 1 record was created');
+        
+        
+        
+        //insert service
+        EventType__c service =  TestUtility.createEvent('dentist',true);
+        system.assert(service.Id != null,'service object 1 record was created');
+        
+        
+        //insert junction object between provider and service
+        ServiceProviderAssociation__c sp = new ServiceProviderAssociation__c(Provider__c=provider.id,Service__c=service.id);
+        insert sp;
+        
+        system.assert(sp.Id != null,'ServiceProviderAssociation object 1 record was created');
+        
+        // Creating Providers Workshifts 
+        List<ProviderWorkShift__c> providerWorkShiftsList = new List<ProviderWorkShift__c>();
+        ProviderWorkShift__c  firstWorkShift = new  ProviderWorkShift__c( Provider__c = provider.id, Location_sumo__c = location.id, isActive__c = true,
+                                                                  Monday__c = true, Tuesday__c = true, Wednesday__c = true, Thursday__c = true, 
+                                                                  Friday__c = true, Saturday__c = true, Sunday__c = true,
+                                                                  StartDate__c = Date.today().toStartOfMonth(), EndDate__c = Date.today().addYears(1),
+                                                                  Workshift_StartTime__c = '07:00 AM',Workshift_EndTime__c = '11:00 AM'
+                                                                    );
+        ProviderWorkShift__c  secondWorkShift = new  ProviderWorkShift__c( Provider__c = provider.id, Location_sumo__c = location.id, isActive__c = true,
+                                                                  Monday__c = true, Tuesday__c = true, Wednesday__c = true, Thursday__c = true, 
+                                                                  Friday__c = true, Saturday__c = true, Sunday__c = true,
+                                                                  StartDate__c = Date.today().toStartOfMonth(), EndDate__c = Date.today().addYears(1),
+                                                                  Workshift_StartTime__c = '01:00 PM',Workshift_EndTime__c = '11:00 PM'
+                                                                    );
+        providerWorkShiftsList.add(firstWorkShift);
+        providerWorkShiftsList.add(secondWorkShift);
+        insert providerWorkShiftsList;
+    
+    
+    
+     
+        
+        //Edited By Sanjeev Shukla
+        CalendarSettings__c calendar = new CalendarSettings__c(name='Calendar Settings',Voice_Default_Value__c='2 Days Prior',Text_Reminder_Default_Value__c='2 Days Prior',Email_Default_Value__c='2 Days Prior');
+        insert calendar;
+    
+    
+    
+        PageReference pageRef = Page.ReminderDetails;
+        Test.setCurrentPage(pageRef);
+        ApexPages.currentPage().getParameters().put('ProcessId',siteSetting.id);
+        ApexPages.currentPage().getParameters().put('LeadId',ld.id);
+        ApexPages.currentPage().getParameters().put('LId',location.id);
+        ApexPages.currentPage().getParameters().put('PId',provider.id);
+        ApexPages.currentPage().getParameters().put('SId',service.id);
+        ApexPages.currentPage().getParameters().put('TimeString', Date.today().year()+'-'+Date.today().month()+'-'+Date.today().day()+' 10:30:00');
+        ApexPages.currentPage().getParameters().put('flowType','1');
+        ApexPages.currentPage().getParameters().put('required','false');
+        ApexPages.currentPage().getParameters().put('UTimeZone','America/New_York');
+        ApexPages.currentPage().getParameters().put('SelectedTimeZone','America/New_York');
+        ApexPages.currentPage().getParameters().put('wstz', userInfo.getTimeZone().getId()+'');
+        ApexPages.currentPage().getParameters().put('OBJ1ID',provider.id);
+        ReminderDetailsController RDC =new ReminderDetailsController();
+        RDC.getFooterHTMLContent();
+        RDC.checkAvailability();
+        
+        System.assertEquals(RDC.isSlotFree, true); // The Slot is Free.
+        
+        Test.startTest();
+        // Sheduling new Appointment
+        RDC.newscheduleAppointment();
+        System.assertEquals(true,[SELECT id FROM Event__c].size()>0); // There must be an appoinment booked
+        RDC.redirectToTargetPage();  
+        RDC.redirectToLogin();   
+        RDC.init();
+        RDC.getEventParticipants(new Set<Id>{provider.id});
+        RDC.getWorkshifts(new Set<Id>{provider.id});
+        
+        // Resheduling Appointment
+        ApexPages.currentPage().getParameters().put('TimeString', Date.today().year()+'-'+Date.today().month()+'-'+Date.today().day()+' 11:30:00');
+        ApexPages.currentPage().getParameters().put('EPId',[SELECT id FROM EventParticipant__c WHERE customer__c != null ].get(0).id);
+        RDC =new ReminderDetailsController();
+        RDC.checkAvailability();
+        
+        System.assertEquals(RDC.isSlotFree, true); // The Slot is Free.
+        
+      	//Event__c event =new Event__c(name = 'eventTest1',StartDateTime__c=system.now(),EndDateTime__c=system.now(),Assigned_To__c=);
+      	
+      Event__c event = new Event__c();		//shivam
+         event.Status__c = 'Booked';
+        // event.EventType__c = evType.Id;
+         event.Location_sumo__c =location.Id;
+         event.Text_Reminder_Date__c = System.Today();
+         event.Second_Text_Reminder_Date__c = System.Today();
+         event.Text_Reminder__c = '2 Days Prior';
+         event.StartDateTime__c = Datetime.now().addHours(10);
+         event.EndDateTime__c = Datetime.now().addHours(12);
+         event.Email_Reminder__c  = '1 Day Prior';   
+      	 event.Assigned_To__c = provider.id;
+       insert event;
+      
+      	RDC.sendEmail(event.id+'');
+      	//ReminderDetailsController.addChatterFeed(event.id+'');
+      	
+      sobject so = new Account(name = 'Acme');
+      insert so;
+      //ReminderDetailsController.hasSObjectField(so);   -->private method
+     //string str = 'Monday';
+      //ReminderDetailsController.checkWorkshiftWeekDay(str,firstWorkShift);		-->private method
+      
+      case caseid = new case(Status='New',Origin='Phone');
+      insert caseid;
+      Self_Scheduling_Site_Settings__c ssc = TestUtility.createSite('name','text',false);
+      insert ssc;
+      Appointment_Invite__c ai = new Appointment_Invite__c(Case__c=caseid.id,Process__c=ssc.id);
+      insert ai;
+      RDC.getOwnerProvider(caseid.id);
+      RDC.timeInsideWorkshift();		
+      RDC.validateALLParam(caseid.id+'' ,ai.id+'' ,ssc.id+'','','');
+      RDC.Provider_Workshifts(provider.id , location.id);
+      
+      // Sheduling new Appointment
+        
+        RDC.newscheduleAppointment();
+        System.assertEquals(true,[SELECT id FROM Event__c].size()>0); // There must be an appoinment booked
+        RDC.redirectToTargetPage();  
+        
+        RDC.getEventParticipants(new Set<Id>{provider.id});
+        RDC.getWorkshifts(new Set<Id>{provider.id});
+        RDC.redirectToLogin();
+        RDC.curUserPortal();
+        RDC.showLogin=true;
+        RDC.fetchCustomFields();
+        //ReminderDetailsController.addChatterFeed([SELECT id FROM Event__c LIMIT 1].get(0).Id);
+        Test.stopTest();
+        
+    }
+    
+     
+    
+    static testMethod void ReminderDetailsControllerTest2() {
+
+        // Provider
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c=userinfo.getUserId();
+        insert provider;
+        
+        
+        
+        system.assert(provider.Id != null,'Contact 1 record was created');
+        Self_Scheduling_Site_Settings__c siteSetting = TestUtility.createSite('Test','Customer',false);
+        siteSetting.Self_Scheduling_Provider_Search_Criteria__c = 'firstname';
+        siteSetting.Exclude_to_Following_Providers__c = provider.id;
+        siteSetting.Limit_Open_Appointments__c = 10;
+        insert siteSetting; 
+        
+        Scheduling_Setting_Line_Item__c item1 = new Scheduling_Setting_Line_Item__c();
+        item1.Field_Label__c = 'First Name';
+        item1.Field_Name__c = 'firstname';
+        item1.Field_Type__c = 'STRING';
+        item1.Object__c = 'Contact';
+        item1.Online_Scheduling_Process__c = siteSetting.id;
+        item1.Type__c = 'Last Step Custom Fields';
+        insert item1;
+        Scheduling_Setting_Line_Item__c item2 = new Scheduling_Setting_Line_Item__c();
+        item2.Field_Label__c = 'Email';
+        item2.Field_Name__c = 'email';
+        item2.Field_Type__c = 'email';
+        item2.Object__c = 'Contact';
+        item2.Online_Scheduling_Process__c = siteSetting.id;
+        item2.Type__c = 'Last Step Custom Fields';
+        insert item2;
+        
+        Account a = TestUtility.createAccount('Test',true);
+        Contact dummy = new contact(lastname='Dummy Contact', accountId = a.id);
+        insert dummy;
+        
+        Profile p1 = [SELECT Id FROM Profile where name='Authenticated Website']; 
+        User user11 = new User(
+            Username = 'ABCDS@test.com',
+            ProfileId = p1.Id,
+            Alias = 'test123',
+            Email = 'ABCDS@test.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'McTesty',
+            CommunityNickname = 'test12345',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            LocaleSidKey = 'en_US',
+            LanguageLocaleKey = 'en_US',
+            contactid=dummy.id
+        );
+        insert user11;
+            
+        //insert location
+        Location__c location = TestUtility.createLocation('Test Location',true);
+        system.assert(location.Id != null,'location 1 record was created');
+        
+        
+        
+        //insert service
+        EventType__c service =  TestUtility.createEvent('dentist',false);
+        service.Meeting_Location_Options__c='Conf Call';
+        insert service;
+        system.assert(service.Id != null,'service object 1 record was created');
+        
+        
+        //insert junction object between provider and service
+        ServiceProviderAssociation__c sp = new ServiceProviderAssociation__c(Provider__c=provider.id,Service__c=service.id);
+        insert sp;
+        
+        system.assert(sp.Id != null,'ServiceProviderAssociation object 1 record was created');
+        
+        // Creating Providers Workshifts 
+        List<ProviderWorkShift__c> providerWorkShiftsList = new List<ProviderWorkShift__c>();
+        ProviderWorkShift__c  firstWorkShift = new  ProviderWorkShift__c( Provider__c = provider.id, Location_sumo__c = location.id, isActive__c = true,
+                                                                  Monday__c = true, Tuesday__c = true, Wednesday__c = true, Thursday__c = true, 
+                                                                  Friday__c = true, Saturday__c = true, Sunday__c = true,
+                                                                  StartDate__c = Date.today().toStartOfMonth(), EndDate__c = Date.today().addYears(1),
+                                                                  Workshift_StartTime__c = '07:00 AM',Workshift_EndTime__c = '11:00 AM'
+                                                                    );
+        ProviderWorkShift__c  secondWorkShift = new  ProviderWorkShift__c( Provider__c = provider.id, Location_sumo__c = location.id, isActive__c = true,
+                                                                  Monday__c = true, Tuesday__c = true, Wednesday__c = true, Thursday__c = true, 
+                                                                  Friday__c = true, Saturday__c = true, Sunday__c = true,
+                                                                  StartDate__c = Date.today().toStartOfMonth(), EndDate__c = Date.today().addYears(1),
+                                                                  Workshift_StartTime__c = '01:00 PM',Workshift_EndTime__c = '11:00 PM'
+                                                                    );
+        providerWorkShiftsList.add(firstWorkShift);
+        providerWorkShiftsList.add(secondWorkShift);
+        insert providerWorkShiftsList;
+    
+    
+    
+     
+        
+        //Edited By Sanjeev Shukla
+        CalendarSettings__c calendar = new CalendarSettings__c(name='Calendar Settings',Voice_Default_Value__c='2 Days Prior',Text_Reminder_Default_Value__c='2 Days Prior',Email_Default_Value__c='2 Days Prior');
+        insert calendar;
+    
+    
+    
+        PageReference pageRef = Page.ReminderDetails;
+        Test.setCurrentPage(pageRef);
+        ApexPages.currentPage().getParameters().put('ProcessId',siteSetting.id);
+        ApexPages.currentPage().getParameters().put('ContactId',dummy.id);
+        ApexPages.currentPage().getParameters().put('LId',location.id);
+        ApexPages.currentPage().getParameters().put('PId',provider.id);
+        ApexPages.currentPage().getParameters().put('SId',service.id);
+        ApexPages.currentPage().getParameters().put('TimeString', Date.today().year()+'-'+Date.today().month()+'-'+Date.today().day()+' 10:30:00');
+        ApexPages.currentPage().getParameters().put('flowType','1');
+        ApexPages.currentPage().getParameters().put('required','false');
+        ApexPages.currentPage().getParameters().put('UTimeZone','America/New_York');
+        ApexPages.currentPage().getParameters().put('SelectedTimeZone','America/New_York');
+        ApexPages.currentPage().getParameters().put('wstz', userInfo.getTimeZone().getId()+'');
+        ApexPages.currentPage().getParameters().put('OBJ1ID',provider.id);
+        ReminderDetailsController RDC =new ReminderDetailsController();
+        RDC.getFooterHTMLContent();
+        RDC.checkAvailability();
+        
+        System.assertEquals(RDC.isSlotFree, true); // The Slot is Free.
+        
+        
+        // Sheduling new Appointment
+        RDC.newscheduleAppointment();
+        
+        RDC.labTte = '';
+        RDC.ReasonLabel = '';
+        RDC.objSelfSchedulingSettings = new SelfSchedulingSettings__c();
+        RDC.HideAppointment = false;
+        RDC.HideWhereonThankYou=false;
+        RDC.HideWhoonThankYou= false;
+        RDC.HideEmailMe=false;
+        RDC.HideText=false;
+        RDC.HideVoice=false;
+        RDC.HideRemindMefinal=false;
+        RDC.HideSpace=false;
+    
+        RDC.sumoSettings=new SUMOSettings__c();
+        
+        RDC.getSObject('contact');
+        RDC.sObjectToBind = new Contact();
+        RDC.conrec = new Contact();
+        ApexPages.currentPage().getParameters().put('TabSelected','Location');
+        RDC.RedirectToTargetPage();
+        ApexPages.currentPage().getParameters().put('TabSelected','Service');
+        RDC.RedirectToTargetPage();
+        ApexPages.currentPage().getParameters().put('TabSelected','Provider');
+        RDC.RedirectToTargetPage();
+        ApexPages.currentPage().getParameters().put('TabSelected','DateTime');
+        RDC.RedirectToTargetPage();
+        
+        RDC.HideLocationonThankyou = true;
+        ApexPages.currentPage().getParameters().put('TabSelected','Location');
+        RDC.RedirectToTargetPage();
+        ApexPages.currentPage().getParameters().put('TabSelected','Service');
+        RDC.RedirectToTargetPage();
+        ApexPages.currentPage().getParameters().put('TabSelected','Provider');
+        RDC.RedirectToTargetPage();
+        ApexPages.currentPage().getParameters().put('TabSelected','DateTime');
+        RDC.RedirectToTargetPage();
+        
+        
+        RDC.curUserPortal();
+        RDC.CustomerCont=dummy.id;
+        RDC.initReminders();
+        
+    }
+    @isTest
+    static void  ReminderDetailsControllerTest3(){
+        // Provider
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c=userinfo.getUserId();
+        insert provider;
+        
+        system.assert(provider.Id != null,'Contact 1 record was created');
+        Self_Scheduling_Site_Settings__c siteSetting = TestUtility.createSite('Test','Customer',false);
+        siteSetting.Self_Scheduling_Provider_Search_Criteria__c = 'firstname';
+        siteSetting.Exclude_to_Following_Providers__c = provider.id;
+        siteSetting.Limit_Open_Appointments__c = 10;
+        insert siteSetting; 
+        
+        // INserting Setting Line Items 
+        Scheduling_Setting_Line_Item__c item1 = new Scheduling_Setting_Line_Item__c();
+        item1.Field_Label__c = 'First Name';
+        item1.Field_Name__c = 'firstname';
+        item1.Field_Type__c = 'STRING';
+        item1.Object__c = 'Contact';
+        item1.Online_Scheduling_Process__c = siteSetting.id;
+        item1.Type__c = 'Last Step Custom Fields';
+        insert item1;
+        
+        Scheduling_Setting_Line_Item__c item2 = new Scheduling_Setting_Line_Item__c();
+        item2.Field_Label__c = 'Email';
+        item2.Field_Name__c = 'email';
+        item2.Field_Type__c = 'email';
+        item2.Object__c = 'Contact';
+        item2.Online_Scheduling_Process__c = siteSetting.id;
+        item2.Type__c = 'Last Step Custom Fields';
+        insert item2;
+        
+        Scheduling_Setting_Line_Item__c item3 = new Scheduling_Setting_Line_Item__c(
+                            Field_Label__c = 'Appointment Status', Field_Name__c = 'forcebrain__status__c', Field_Type__c = 'PICKLIST',
+                            Object__c = 'forcebrain__event__c',Online_Scheduling_Process__c = siteSetting.id, REQUIRED__C = false,
+                            Type__c = 'Last Step Custom Fields');
+        insert item3;
+        Scheduling_Setting_Line_Item__c item4 = new Scheduling_Setting_Line_Item__c(
+                            Field_Label__c = 'Description', Field_Name__c = 'forcebrain__description__c', Field_Type__c = 'TEXTAREA',
+                            Object__c = 'forcebrain__event__c',Online_Scheduling_Process__c = siteSetting.id, REQUIRED__C = false,
+                            Type__c = 'Last Step Custom Fields');
+        insert item4;
+        Scheduling_Setting_Line_Item__c item5 = new Scheduling_Setting_Line_Item__c(
+                            Field_Label__c = 'Text Opt Out', Field_Name__c = 'forcebrain__text_opt_out__c', Field_Type__c = 'BOOLEAN',
+                            Object__c = 'contact',Online_Scheduling_Process__c = siteSetting.id, REQUIRED__C = false,
+                            Type__c = 'Last Step Custom Fields');
+        insert item5;
+        
+        
+        Account a = TestUtility.createAccount('Test',true);
+        Contact dummy = new contact(lastname='Dummy Contact', accountId = a.id);
+        insert dummy;
+        
+        Profile p1 = [SELECT Id FROM Profile where name='Authenticated Website']; 
+        User user11 = new User(
+            Username = 'ABCDS@test.com',
+            ProfileId = p1.Id,
+            Alias = 'test123',
+            Email = 'ABCDS@test.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'McTesty',
+            CommunityNickname = 'test12345',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            LocaleSidKey = 'en_US',
+            LanguageLocaleKey = 'en_US',
+            contactid=dummy.id
+        );
+        insert user11;
+            
+        //insert location
+        Location__c location = TestUtility.createLocation('Test Location',true);
+        system.assert(location.Id != null,'location 1 record was created');
+        
+        
+        
+        //insert service
+        EventType__c service =  TestUtility.createEvent('dentist',false);
+        service.Meeting_Location_Options__c='Conf Call';
+        service.Meeting_Location_Options__c  = 'Conf Call';
+        insert service;
+        system.assert(service.Id != null,'service object 1 record was created');
+        
+        
+        //insert junction object between provider and service
+        ServiceProviderAssociation__c sp = new ServiceProviderAssociation__c(Provider__c=provider.id,Service__c=service.id);
+        insert sp;
+        
+        system.assert(sp.Id != null,'ServiceProviderAssociation object 1 record was created');
+        
+        // Creating Providers Workshifts 
+        List<ProviderWorkShift__c> providerWorkShiftsList = new List<ProviderWorkShift__c>();
+        ProviderWorkShift__c  firstWorkShift = new  ProviderWorkShift__c( Provider__c = provider.id, Location_sumo__c = location.id, isActive__c = true,
+                                                                  Monday__c = true, Tuesday__c = true, Wednesday__c = true, Thursday__c = true, 
+                                                                  Friday__c = true, Saturday__c = true, Sunday__c = true,
+                                                                  StartDate__c = Date.today().toStartOfMonth(), EndDate__c = Date.today().addYears(1),
+                                                                  Workshift_StartTime__c = '07:00 AM',Workshift_EndTime__c = '11:00 AM'
+                                                                    );
+        ProviderWorkShift__c  secondWorkShift = new  ProviderWorkShift__c( Provider__c = provider.id, Location_sumo__c = location.id, isActive__c = true,
+                                                                  Monday__c = true, Tuesday__c = true, Wednesday__c = true, Thursday__c = true, 
+                                                                  Friday__c = true, Saturday__c = true, Sunday__c = true,
+                                                                  StartDate__c = Date.today().toStartOfMonth(), EndDate__c = Date.today().addYears(1),
+                                                                  Workshift_StartTime__c = '01:00 PM',Workshift_EndTime__c = '11:00 PM'
+                                                                    );
+        providerWorkShiftsList.add(firstWorkShift);
+        providerWorkShiftsList.add(secondWorkShift);
+        insert providerWorkShiftsList;
+       
+        //Edited By Sanjeev Shukla
+        CalendarSettings__c calendar = new CalendarSettings__c(name='Calendar Settings',Voice_Default_Value__c='2 Days Prior',Text_Reminder_Default_Value__c='2 Days Prior',Email_Default_Value__c='2 Days Prior');
+        insert calendar;
+        Event__c event = TestCreateObject.getEvent();
+        event.Status__c = 'Booked';
+        event.EventType__c = service.Id;
+        event.Location_sumo__c = location.Id;
+        event.Text_Reminder_Date__c = System.Today();
+        event.Second_Text_Reminder_Date__c = System.Today();
+        event.Text_Reminder__c = '2 Days Prior';
+        event.StartDateTime__c = Datetime.now().addHours(10);
+        event.EndDateTime__c = Datetime.now().addHours(12);
+        event.Email_Reminder__c  = '1 Day Prior';         
+        insert event;
+
+        EventParticipant__c EP1 = new EventParticipant__c(Customer__c = user11.contactId , Event__c = event.id, EmailNotification__c = true,
+                                                          ParticipantStatus__c = 'Confirmed');
+        insert EP1;
+        EventParticipant__c EP2 = new EventParticipant__c(Customer__c = provider.Id , Event__c = event.id, EmailNotification__c = true,
+                                                            ParticipantStatus__c = 'Confirmed');
+        insert EP2;
+        
+        PageReference pageRef = Page.ReminderDetails;
+        Test.setCurrentPage(pageRef);
+        ApexPages.currentPage().getParameters().put('ProcessId',siteSetting.id);
+        ApexPages.currentPage().getParameters().put('ContactId',dummy.id);
+        ApexPages.currentPage().getParameters().put('LId',location.id);
+        ApexPages.currentPage().getParameters().put('PId',provider.id);
+        ApexPages.currentPage().getParameters().put('SId',service.id);
+        ApexPages.currentPage().getParameters().put('TimeString', Date.today().year()+'-'+Date.today().month()+'-'+Date.today().day()+' 10:30:00');
+        ApexPages.currentPage().getParameters().put('flowType','1');
+        ApexPages.currentPage().getParameters().put('required','false');
+        ApexPages.currentPage().getParameters().put('UTimeZone','America/New_York');
+        ApexPages.currentPage().getParameters().put('SelectedTimeZone','America/New_York');
+        ApexPages.currentPage().getParameters().put('wstz', userInfo.getTimeZone().getId()+'');
+        ApexPages.currentPage().getParameters().put('OBJ1ID',provider.id);
+        ApexPages.currentPage().getParameters().put('EPId',EP1.id);
+        ReminderDetailsController RDC = new ReminderDetailsController();
+        RDC.goBack();
+        
+    }
+    
+    /*@isTest
+    static void  UtilsControllerTest4(){
+        Utils utl = new Utils();
+        
+        Utils.CheckCampaignsEnabled();
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+        Set<Id> pId = new Set<Id>();
+        pId.add(provider.Id);
+        
+        DateTime strtime = Datetime.now().addHours(10);
+        DateTime endtime = Datetime.now().addHours(11);
+        //utl.checkAvailability(pId,strtime,endtime,'India Standard Time');
+        
+        Location__c location = TestUtility.createLocation('Test Location',true);
+        system.assert(location.Id != null,'location 1 record was created');
+        
+        //insert service
+        EventType__c service =  TestUtility.createEvent('dentist',false);
+        service.Meeting_Location_Options__c='Conf Call';
+        service.Meeting_Location_Options__c  = 'Conf Call';
+        insert service;
+        system.assert(service.Id != null,'service object 1 record was created');
+        
+        Event__c event = TestCreateObject.getEvent();
+        event.Status__c = 'Booked';
+        event.EventType__c = service.Id;
+        event.Location_sumo__c = location.Id;
+        event.Text_Reminder_Date__c = System.Today();
+        event.Second_Text_Reminder_Date__c = System.Today();
+        event.Text_Reminder__c = '2 Days Prior';
+        event.StartDateTime__c = Datetime.now().addHours(10);
+        event.EndDateTime__c = Datetime.now().addHours(12);
+        event.Email_Reminder__c  = '1 Day Prior';         
+        insert event;
+
+        EventParticipant__c EP1 = new EventParticipant__c(Customer__c = provider.Id , Event__c = event.id, EmailNotification__c = true,
+                                                          ParticipantStatus__c = 'Confirmed');
+        insert EP1;
+        utl.getEventParticipants(pId);
+        String Skey = '2';
+        utl.getMonth(Skey);
+    }*/
+    
+}

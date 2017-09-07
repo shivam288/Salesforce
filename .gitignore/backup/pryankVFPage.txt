@@ -1,0 +1,213 @@
+<apex:page controller="AccSearchController" sidebar="false" tabStyle="account" title="AccSearchPage">
+   <script type="text/javascript">
+       function selectAllCheckboxes(obj,receivedInputID){
+           var inputCheckBox = document.getElementsByTagName("input");                  
+           for(var i=0; i<inputCheckBox.length; i++){          
+               if(inputCheckBox[i].id.indexOf(receivedInputID)!=-1){                                     
+                   inputCheckBox[i].checked = obj.checked;
+               }
+           }
+       }
+   </script>
+   <apex:form >
+       <apex:pageBlock title="Custom Account Search Page">
+           <apex:inputText value="{!keyword}"/>
+           <apex:commandButton value="search" action="{!search}" />
+       </apex:pageBlock>
+	   
+       <apex:outputPanel rendered="{!screen1}">
+           <apex:pageBlock id="p2">
+                   <apex:pageBlockTable value="{!listWrap}" var="wrap">
+                       <apex:column >
+                          <apex:facet name="header">
+                               <apex:inputCheckbox onclick="selectAllCheckboxes(this,'inputId')" />
+                           </apex:facet>
+                           <apex:inputCheckbox value="{!wrap.isSelected}" id="inputId" />
+                       </apex:column>
+                       <apex:column value="{!wrap.acc1.name}"/>
+                       <apex:column value="{!wrap.acc1.phone}"/>
+                       <apex:column value="{!wrap.acc1.industry}"/>
+                       <apex:column value="{!wrap.acc1.billingcity}"/>
+                       <apex:column headerValue="Action">
+					    <apex:commandLink action="{!deleteAcc}" onclick="if(!confirm('Are you sure?')) return false;">Del
+    					<apex:param value="{!wrap.acc1.Id}" name="idToDel" assignTo="{!dealId}"/>
+						</apex:commandLink>
+                           &nbsp;|&nbsp;<apex:commandLink action="{!relatedCon}" value="Create Contact">
+                           <apex:param value="{!wrap.acc1.Id}" name="idToDel" assignTo="{!dealId}"/></apex:commandLink>
+                       </apex:column>
+                   </apex:pageBlockTable>
+               
+                <apex:pageBlockButtons >
+                    <apex:commandButton value="edit" action="{!edit}" />
+                </apex:pageBlockButtons>
+                
+           </apex:pageBlock>
+           </apex:outputPanel>
+           
+		   <apex:outputPanel rendered="{!!screen1}">
+           <apex:pageBlock title="Edit,Delete,Create Related Contact">
+               <apex:pageBlockTable value="{!listwrap}" var="wrap">
+                         <apex:column >
+                            <apex:inputText value="{!wrap.acc1.name}"/>
+                         </apex:column>
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.phone}"/>
+                            </apex:column> 
+                  		 <apex:column >
+                               <apex:inputText value="{!wrap.acc1.industry}"/>
+                         </apex:column> 
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.billingcity}"/>
+                         </apex:column>
+                        </apex:pageBlockTable>
+                <apex:commandButton value="save" action="{!save}" />
+        </apex:pageblock> 
+               
+        </apex:outputPanel>
+   </apex:form>
+</apex:page>
+
+---------------------------
+public class AccSearchController {
+
+   public Boolean screen1 { get; set; }
+   public  string keyword{get;set;}
+   public List<Account> acc{get;set;}
+   public List<WrapCheck> listWrap{get;set;}
+   public List<WrapCheck> list1 {get;set;}
+    
+    public pagereference save(){
+       List<account> updatedaccount = new List<account>();
+       List<WrapCheck> wraplst1 = list1;
+       For(Integer i=0;i<wraplst1.size();i++){ 					//
+               updatedaccount.add(wraplst1[i].acc1);
+       }
+       update updatedaccount;
+       PageReference pageRef = new Pagereference('/apex/AccSearch?=""');
+       pageRef.setRedirect(true);
+       return pageRef;
+   }
+    
+     public pagereference edit(){
+   screen1  = false;
+       list1 = new List<WrapCheck>();
+       for(WrapCheck a1 : listWrap){
+           if(a1.isSelected == True){
+           list1.add(a1);
+           }
+       }
+       listwrap = list1;
+       return null;
+   }
+    
+   //
+   
+   public String dealId {get;set;} 
+   
+    public pagereference deleteAcc(){
+       screen1=false;
+       //list1 = new List<WrapCheck>();
+       acc = new list<account>();
+       for(WrapCheck a1 : listWrap){
+           if(a1.isSelected == True){
+           acc.add(a1.acc1);
+           }
+       }
+        delete acc;
+        pagereference pg = new Pagereference('/apex/AccSearch?=""');
+      //loadData();
+      	pg.setRedirect(true);
+        return pg;
+   }
+    
+    public pageReference relatedCon(){
+        screen1=true;
+        
+        return null;
+    }
+	/*public void loadData() {
+        deals = [Select id,name,phone,industry,billingcity from account Order By CreatedDate desc];
+    } */
+	
+	
+   
+   
+   public AccSearchController(){
+       listWrap = new List<WrapCheck>();
+       acc = new List<Account>();
+       screen1  = true;
+
+   }
+   
+   public pagereference search(){
+       listWrap = new List<WrapCheck>();
+       for(account acc : [select id,name,phone,industry,billingcity from account where Name LIKE: '%'+ keyword +'%' LIMIT 10]){
+           listWrap.add(new WrapCheck(acc));
+       }
+       return null;
+   }
+   
+  
+
+   //wrapper Class
+   public class WrapCheck{
+       public account acc1{get;set;}
+       public boolean isSelected{get;set;}
+       
+       public wrapCheck(account a){
+           this.acc1 = a;
+           this.isSelected = false;
+       }
+       
+   }
+}
+
+-------------------------------------------->>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+ public string str{get; set;}
+    public list<account> accounts {get; set;}
+    public list<AccContainer> ac{get; set;}
+    public List<AccContainer> list1 {get;set;}
+    
+    public AccSearchController(){
+        accounts = new list<account>();
+        if(ac==null){
+            ac = new list<AccContainer>();
+        }
+    }
+    public pagereference searchBtn(){
+       string tempstr = '%'+str+'%';
+        for(account a : [select name,phone,industry,AnnualRevenue from account where name like :tempstr]){
+            ac.add(new AccContainer(a));
+        }		// problem field -> CreatedBy
+        accounts = [select name,phone,industry,AnnualRevenue from account where name like :tempstr];
+        return null; 
+    }
+    
+    public pagereference Edit(){
+        accounts = new list<account>();
+        for(AccContainer selAcc : ac){
+            if(selAcc.isSelected == true){
+                list1.add(selAcc);
+            } 
+        }
+        ac = list1;
+        return null;
+    }
+    
+    public pagereference saveAll(){
+        update accounts;
+        return null;
+    }
+    
+    //controller class
+    class AccContainer{
+        public account acc{get; set;}
+        public boolean isSelected{get; set;}
+        
+        public AccContainer(account acc){
+            this.acc = acc;
+            this.isSelected = false;
+        }
+    }
+}

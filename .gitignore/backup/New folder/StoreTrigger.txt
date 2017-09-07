@@ -1,0 +1,29 @@
+/**
+ * SIGNET
+ * @author          Lavanya Aningi
+ * @version         1.0
+ * @date            02/22/2017
+ * @description     Trigger to insert or update the 'Active Store' flag on Reporting Metrics object when a Store record is created or edited.
+  */
+trigger StoreTrigger on Stores__c (after Insert,after Update) {
+  
+  StoreTriggerHandler sth = new StoreTriggerHandler();
+  List<Stores__c> stlist = new List<Stores__c>();
+  for(Stores__c st: Trigger.New){
+    if(st.Global_Store_Id__c != null  || st.Global_Store_Id__c != '' ){
+        stlist.add(st);
+     }
+    sth.StoreActiveReportingMetrics(stlist);
+  }
+    
+  /*
+   *  Shivam Gupta
+   *  Date: 28/08/2017
+   *  Description: Trigger to create 4 Objects - Location, Providers, WorkShift and Service Offered while inserting any Store record. 
+   */
+    
+    
+    sth.createLocation(trigger.new);
+    
+    
+}

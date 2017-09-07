@@ -1,0 +1,214 @@
+/**
+ * SIGNET
+ * @author          Lavanya Aningi
+ * @version         1.0
+ * @date            02/22/2017
+ * @description     Handler class for Store Trigger
+  */
+global with sharing class StoreTriggerHandler { 
+ 
+ /**
+ * SIGNET
+ * @author          Lavanya Aningi
+ * @version         1.0
+ * @date            002/22/2017
+ * @description     Method to Insert/Update insert or update the 'Active Store' flag on Reportic Metrics record when User is created/updated
+  */
+ public void StoreActiveReportingMetrics(List<Stores__c> storeList){
+        
+        Map<String,Stores__c> storedIdMap = new Map<String,Stores__c>();
+        List<Reporting_Metrics__c> rmUpdate = new List<Reporting_Metrics__c>();
+        for(Stores__c st : storeList){
+            storedIdMap.put(st.Global_Store_Id__c,st);
+         }
+        
+        Map<String,List<Reporting_Metrics__c>> mapStoreRM = new Map<String,List<Reporting_Metrics__c>>();
+       
+        for(List<Reporting_Metrics__c> rmetrics : [Select Id,GEM_Store__c,GEM_User__c,GEM_isStoreActive__c from Reporting_Metrics__c where GEM_Store__c IN :storedIdMap.keySet()]){
+        
+            for(Reporting_Metrics__c rm : rmetrics){
+            if(rm.GEM_isStoreActive__c != storedIdMap.get(rm.GEM_Store__c).Is_Store_Active__c){
+            rm.GEM_isStoreActive__c = storedIdMap.get(rm.GEM_Store__c).Is_Store_Active__c;
+            }
+            }
+        try{
+         update rmetrics;
+        } 
+        catch(Exception ex){
+            SystemUtils.createApexExceptionLog(ex,'StoreTriggerHandler ');
+        } 
+            
+    }
+    }
+    
+    
+    /*
+    *  Shivam Gupta
+    *  Date: 28/08/2017
+    *  Description: Trigger to create 4 Objects - Location, Providers, WorkShift and Service Offered while inserting any Store record. 
+    */
+    
+    public static map<id,Sumo_Configuration__c> createSumoConfiguration(list<Stores__c>stlist1, list<Sumo_Configuration__c> sumoConfig){
+        map<id,Sumo_Configuration__c> storeSumoConfigMap = new map<id,Sumo_Configuration__c>();
+        for(stores__c st : stlist1){
+            for(Sumo_Configuration__c sconfig : sumoConfig){
+                 if(st.Logo__c == sconfig.Ecom_Logo__c){
+                        storeSumoConfigMap.put(st.id, sconfig);
+                 }
+            }
+        }
+        return  storeSumoConfigMap;
+    }
+    
+    public static map<id, forcebrain__Location__c> createLocation(list<Stores__c> stores){
+        map<id, forcebrain__Location__c> storeLocationMap = new map<id, forcebrain__Location__c>();
+        for(Stores__c s : stores){
+            forcebrain__Location__c loc = new forcebrain__Location__c();
+            loc.forcebrain__Street__c = s.Street_Address__c;
+            loc.forcebrain__City__c = s.City__c;
+            loc.forcebrain__Country__c = s.Country__c;
+            loc.forcebrain__State__c = s.State_Province__c;
+            loc.forcebrain__Zip_Code__c = '';                               // ---> not present in store
+            loc.forcebrain__IsActive__c = true;                             //  If all of the above fields are true     -two times location active
+            loc.name = s.Global_Store_Id__c;
+            loc.Store_Number__c = String.valueOf( s.id );
+            storeLocationMap.put(s.id , loc);
+        }
+        return storeLocationMap;
+    }
+    
+    public static map<id, list<contact>> createProviders(list<Stores__c> stores , map<id,Sumo_Configuration__c> storeSumoConfigMap){
+        list<contact> contacts = new list<contact>();
+        map<id, list<contact>> storeProviderMap = new map<id, list<contact>>();
+        //integer numberOfProviders = 1;    -->hardcode
+        list<user> userList = new list<user>();
+        for(user u : [select Id from User where Id not IN(Select forcebrain__User__c from Contact) and IsActive = TRUE]){   //-->need to confirm
+            userList.add(u);
+        }    
+        integer index=0;
+        for(Stores__c s : stores){
+            for(integer i=0; i<storeSumoConfigMap.get(s.id).Number_of_providers__c; i++){
+                Contact c = new Contact();
+                c.firstname = 'Stores ';
+                c.lastname = s.Store_Number__c + ' A';                          // A/B/C --> need to confirm
+                c.email = '';
+                c.forcebrain__IsProvider__c = true;
+                c.forcebrain__CurrentlyWorking__c = true;
+                c.forcebrain__User__c = userList[index++].id;
+                contacts.add(c);
+            }
+            storeProviderMap.put(s.id, contacts);
+        }
+        return storeProviderMap;
+    }
+    
+   
+    public static list<forcebrain__ProviderWorkShift__c> createWorkShift(map<id, list<contact>> storeProviderMap, map<id, forcebrain__Location__c> storeLocationMap , map<id,Sumo_Configuration__c> storeSumoConfigMap){        
+        list<forcebrain__ProviderWorkShift__c> workshifts = new list<forcebrain__ProviderWorkShift__c>();
+        list<contact> contacts = new list<contact>();
+        for(id sid : storeProviderMap.keySet()){
+            contacts.addAll(storeProviderMap.get(sid));
+            for(contact c : contacts){
+                forcebrain__ProviderWorkShift__c ws = new forcebrain__ProviderWorkShift__c();
+                ws.forcebrain__Monday__c = true;
+                ws.forcebrain__Tuesday__c = true;
+                ws.forcebrain__Wednesday__c = true;
+                ws.forcebrain__Thursday__c = true;
+                ws.forcebrain__Friday__c = true;
+                ws.forcebrain__Monday__c = true;
+                ws.forcebrain__Monday__c = true;
+                ws.forcebrain__Monday__c = true;
+                ws.forcebrain__StartDate__c = system.today();               //
+                ws.forcebrain__EndDate__c = Date.newInstance(system.today().year()+2100, system.today().month(), system.today().Day());     //
+                ws.forcebrain__Location_sumo__c = storeLocationMap.get(sid).id;
+                string strTime = storeSumoConfigMap.get(sid).Start_Time__c.hourGmt()+':'+storeSumoConfigMap.get(sid).Start_Time__c.minuteGmt();
+                ws.forcebrain__StartTime__c = strTime;                                                      //  '12:00 AM   '   
+                strTime='';
+                strTime = storeSumoConfigMap.get(sid).End_Time__c.hourGmt()+':'+storeSumoConfigMap.get(sid).End_Time__c.minuteGmt();
+                ws.forcebrain__EndTime__c = strTime;                                                        //  6:40 AM'
+                ws.forcebrain__isActive__c = true;
+                workshifts.add(ws);
+            }
+            contacts = new list<contact>();
+        }
+        
+        return workshifts;
+    }
+    
+    public static list<forcebrain__ServiceProviderAssociation__c> createServiceOffered(map<id, list<contact>> storeProviderMap , map<id,Sumo_Configuration__c> storeSumoConfigMap){
+        list<forcebrain__ServiceProviderAssociation__c> serviceProviderAssociationList = new list<forcebrain__ServiceProviderAssociation__c>();
+        for(id sid : storeProviderMap.keySet()){    
+            for(contact c : storeProviderMap.get(sid)){
+                if(storeSumoConfigMap.containsKey(sid)){
+                    forcebrain__ServiceProviderAssociation__c serviceAndProvider = new forcebrain__ServiceProviderAssociation__c();
+                    serviceAndProvider.forcebrain__Provider__c = c.id;
+                    //serviceAndProvider.forcebrain__Service__c = storeSumoConfigMap.get(sid).service__c;
+                    serviceProviderAssociationList.add(serviceAndProvider);
+                }
+            }
+        }
+        return serviceProviderAssociationList;
+    }  
+
+   /* void createRelatedRecords() } */
+   
+   /********
+   @Forcebrain
+   @Author : Kuhinoor Alam
+   @date   : 29-08-2017   
+   *********/
+   public static void storeUpdate(list<Stores__c> storeList){
+    map<string,Stores__c> storeMap = new map<string,Stores__c>();
+    map<string,forcebrain__Location__c> locationMap = new map<string,forcebrain__Location__c>();
+    list<forcebrain__Location__c> locationUpdate = new list<forcebrain__Location__c> (); 
+    for(Stores__c store : storeList){
+        //if(store.Is_Store_Active__c = true && store.Appointment_Scheduler_Active__c == 'Active'){
+            storeMap.put(store.id,store);
+        //}       
+    }   
+    if(storeMap.size() > 0){
+        for(forcebrain__Location__c loc : [SELECT id,forcebrain__City__c,forcebrain__State__c,forcebrain__Zip_Code__c,forcebrain__IsActive__c FROM forcebrain__Location__c where Store_Number__c IN : storeMap.keySet()]){
+            locationMap.put(loc.Store_Number__c,loc);
+        }
+        for(Stores__c storeObj : storeMap.values()){
+            if(locationMap.containsKey(storeObj.id)){
+                forcebrain__Location__c locObj = locationMap.get(storeObj.id);
+                locObj.forcebrain__City__c = storeObj.City__c;
+                locObj.forcebrain__State__c = storeObj.State_Province__c;
+                //locObj.forcebrain__Zip_Code__c = storeObj.
+                locObj.forcebrain__IsActive__c = true;
+                locObj.Store_Number__c = storeObj.id;
+                locObj.Store_Type__c = 'Jared';
+                locationUpdate.add(locObj);
+           }else{
+                forcebrain__Location__c fbLoc = new forcebrain__Location__c(forcebrain__City__c = storeObj.City__c,
+                                                forcebrain__State__c = storeObj.State_Province__c,forcebrain__IsActive__c = true,
+                                                Store_Number__c = storeObj.id,Store_Type__c = 'Jared');
+                                                
+                locationUpdate.add(fbLoc);                                  
+           }
+        }
+        if(locationUpdate.size() > 0){
+            //UPSERT LOCATIONS.....
+            upsert locationUpdate;
+        }
+        // fetch provider....
+        List<Contact> providerList = [SELECT id,Name,email,forcebrain__IsProvider__c,forcebrain__User__c,forcebrain__CurrentlyWorking__c FROM contact where Store__c IN : storeMap.keySet()];
+        if(providerList.size() > 0 ){
+            for(contact con : providerList){
+                if(storeMap.containsKey(con.Store__c) ){
+                    Stores__c store = storeMap.get(con.store__c);
+                    con.LastName= 'Store ';   
+                    con.FirstName= store.Store_Number__c +'A';    
+                    //con.email = '';
+                    con.forcebrain__IsProvider__c = true; 
+                    //con.forcebrain__User__c = No need to update in case of update.
+                    con.forcebrain__CurrentlyWorking__c = true;
+                }
+            }
+            // Update Provider...
+            Update providerList;            
+        } 
+    }
+}
+}

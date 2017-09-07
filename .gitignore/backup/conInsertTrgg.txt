@@ -1,0 +1,93 @@
+trigger contactInsertTrgg on Contact (before insert,after insert) {
+	set<id> accs = new set<id>();
+    list<contact> conupdate = new list<contact>();
+    
+    if(trigger.isInsert && trigger.isbefore){
+    for(contact con : trigger.new){
+        if(con.AccountId!=null){
+        con.isInsert__c = true;
+        conupdate.add(con);
+        accs.add(con.AccountId);
+            }
+    }
+        //update conupdate;		System.SObjectException: DML statement cannot operate on trigger.new or trigger.old
+    /*list<contact> contacts  = [select id,lastname,isInsert__c from contact where isInsert__c=true and accountId in :accs];
+        for(contact c: contacts){
+            c.isInsert__c = false;
+        } */
+    list<account> accupdate = new list<account>();
+    for(account acc : [select id,name,New_Contact__c from account where id in :accs]){
+        for(contact c : trigger.new){
+        	acc.New_Contact__c = c.lastname;
+            accupdate.add(acc);
+            }
+    }
+        update accupdate;
+    }
+    
+    list<contact> contacts  = new list<contact>();
+    if(trigger.isAfter){
+        for(contact c: [select id,lastname,isInsert__c from contact where isInsert__c=true and id not in :trigger.new and accountId in :accs]){
+            c.isInsert__c = false;
+            contacts.add(c);
+        }
+    }
+    update contacts;
+}
+
+/*
+  contactInsertTrgg: execution of AfterInsert caused by: System.FinalException: Record is read-only
+*/
+----------------------------
+
+trigger contactInsertTrgg on Contact (before insert,after insert) {
+	set<id> accs = new set<id>();
+    list<contact> conupdate = new list<contact>();
+    
+    if(trigger.isInsert && trigger.isbefore){
+    for(contact con : trigger.new){
+        if(con.AccountId!=null){
+        con.isInsert__c = true;
+        conupdate.add(con);
+        accs.add(con.AccountId);
+            }
+    }
+        //update conupdate;		System.SObjectException: DML statement cannot operate on trigger.new or trigger.old
+    /*list<contact> contacts  = [select id,lastname,isInsert__c from contact where isInsert__c=true and accountId in :accs];
+        for(contact c: contacts){
+            c.isInsert__c = false;
+        } */
+    
+    }
+    
+    
+    if(trigger.isAfter){
+        list<contact> contacts  = new list<contact>();
+        list<account> accupdate = new list<account>();
+        for(contact con : trigger.new){
+            if(con.AccountId!=null){
+            	accs.add(con.AccountId);
+        	}
+        }
+          
+        for(account acc : [select id,name,Primary_Contact__c from account where id in :accs]){
+            for(contact c : trigger.new){
+                acc.Primary_Contact__c = c.id;
+                accupdate.add(acc);
+                }
+        }
+        update accupdate;
+        
+        for(contact c: [select id,isInsert__c from contact where isInsert__c=true 
+                        	and id not in :trigger.newMap.Keyset() and accountId in :accs]){
+            c.isInsert__c = false;
+            contacts.add(c);
+        }
+        update contacts;
+    }
+    
+}
+
+/*
+  contactInsertTrgg: execution of AfterInsert caused by: System.FinalException: Record is read-only
+*/

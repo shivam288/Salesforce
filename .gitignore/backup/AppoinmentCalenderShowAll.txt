@@ -1,0 +1,149 @@
+<tr>
+					<td>{!w.providerId}</td>
+					<td>{!w.locationId}</td>
+					<td>{!w.startDatetime}</td>
+					<td>{!w.endDatetime}</td>
+					<td>{!w.monday}</td>
+					<td>{!w.tuesday}</td>
+					<td>{!w.wednesday}</td>
+					<td>{!w.thursday}</td>
+					<td>{!w.friday}</td>
+					<td>{!w.saturday}</td>
+					<td>{!w.sunday}</td>
+					<td>{!w.WStimezone}</td>
+        		</tr> 
+-------------------------------------------------
+// Date: 23/08/2017     Wed
+
+public class AppointmentCalendarShowAllController {
+    public list<WorkShiftWrapper> wsWrapper{get; set;}
+    public String location{get; set;}
+    public string providers{get; set;} 
+    
+    public AppointmentCalendarShowAllController(){
+        wsWrapper = new list<WorkShiftWrapper>();
+        providers='';
+        //for(serviceProviderAssociation__c spa : [select Provider__c,Service__c from serviceProviderAssociation__c where Provider__r.id =:])
+        //serviceProviderAssociation__c 
+        for(contact c : [select id from contact where isProvider__c=TRUE limit 20]){
+               providers += c.id+',';
+        }
+        
+    }
+    @RemoteAction
+    public Static list<WorkShiftWrapper> getWorkShift(String location , string providerIds){
+        list<WorkShiftWrapper> WSWrapperList = new list<WorkShiftWrapper>();
+        list<string> providers = (providerIds==null) ? new list<string>() : providerIds.split(',');
+        for(ProviderWorkShift__c pws :  [SELECT id,Provider__r.name ,Location_sumo__c,
+                                         StartDateTime__c,EndDateTime__c,Monday__c,Tuesday__c,
+                                         Wednesday__c,Thursday__c,Friday__c,Saturday__c,Sunday__c,
+                                         CreatedBy.TimeZoneSidKey, LastModifiedBy.TimeZoneSidKey
+                                         FROM ProviderWorkShift__c WHERE isActive__c = TRUE 
+                                         AND Provider__c IN :providers AND Location_sumo__c =:location ]){
+                                        
+        
+            WSWrapperList.add(new WorkShiftWrapper(pws));                                      
+        }
+        return WSWrapperList;
+    }
+    // Wrapper Class
+    public class WorkShiftWrapper{
+        public String providerId{get;set;}
+        public String locationId{get;set;}
+        public boolean monday{get;set;}
+        public boolean tuesday{get;set;}
+        public boolean wednesday{get;set;}
+        public boolean thursday{get;set;}
+        public boolean friday{get;set;}
+        public boolean saturday{get;set;}
+        public boolean sunday{get;set;}
+        public Datetime startDatetime{get;set;}
+        public Datetime endDatetime{get;set;}
+        public String WStimezone{get;set;}
+            
+        public  WorkShiftWrapper(ProviderWorkShift__c ws){
+            providerId = ws.Provider__c;
+            locationId = ws.Location_sumo__c;
+            this.monday = ws.Monday__c;
+            this.tuesday = ws.Tuesday__c;
+            this.wednesday = ws.Wednesday__c;
+            this.thursday = ws.Thursday__c;
+            this.friday = ws.Friday__c;
+            this.saturday = ws.Saturday__c;
+            this.sunday = ws.Sunday__c;
+            this.startDatetime = ws.StartDateTime__c;
+            this.endDatetime = ws.EndDateTime__c;
+            WStimezone = (ws.LastModifiedBy==NULL)? String.valueOf(ws.CreatedBy) : String.valueOf(ws.LastModifiedBy);
+        }
+    }
+}
+
+----------------------------------------------------------------------------
+
+<!--   Date: 23/08/2017     Wed		-->
+
+<apex:page controller="AppointmentCalendarShowAllController" applyBodyTag="false" applyHtmlTag="false" showHeader="false" sidebar="false" setup="false" >
+        <script>
+            function getRemoteData(){
+                var location = 'a0Kf4000000SAQV';
+                var providers = '{!providers}';     //'003f4000004Nrrn,003f4000004Nrrq,003f4000004Nrzq';
+                var slotTime = 30;					// can be calculated by service time
+                
+                Visualforce.remoting.Manager.invokeAction(					// Case-sensitive
+                    '{!$RemoteAction.AppointmentCalendarShowAllController.getWorkShift}',
+                    location,
+                    providers,
+                    function(result,event){
+                        alert(JSON.stringify(event));
+                        if(event.status){
+                            //document.getElementById('WrapData').innerHTML = result.id;
+                            // Need to parse the result returned
+                            
+                            var wsTable='<tr width="30%"><th>Provider</th><th>Location</th><th>Monday</th>';
+                			wsTable += '<th>Tuesday</th><th>Wednesday</th><th>Thursday</th>';
+                			wsTable += '<th>Friday</th><th>Saturday</th><th>Sunday</th><th>Start Date Time</th><th>End Date Time</th><th>Time Zone</th></tr>';
+                            for(var i=0; i<result.length; i++){
+                                wsTable +='<tr><td>'+result[i].providerId+'</td><td>'+result[i].locationId+'</td>';
+                                wsTable +='<td>'+result[i].monday+'</td><td>'+result[i].tuesday+'</td><td>'+result[i].wednesday+'</td>';
+                                wsTable +='<td>'+result[i].thursday+'</td><td>'+result[i].friday+'</td><td>'+result[i].saturday+'</td>';
+                                wsTable +='<td>'+result[i].sunday+'</td><td>'+new Date(result[i].startDatetime)+'</td><td>'+new Date(result[i].endDatetime)+'</td><td>'+result[i].WStimezone+'</td></tr>';
+                            } 
+                            document.getElementById('tableData').innerHTML = wsTable;
+                            
+                            // calculating time for slot 
+                            var slotArray = [];
+                            var totalTime = 0;
+                            var d = new Date();
+                            
+                            for(var i=0; i<(result.length <= 10) ? result.length : 10; i++){
+                            	d > new Date(result[i].startDatetime) ? result[i].startDatetime = Number(d) : new Date(result[i].startDatetime); 
+                                d = new Date(result[i].startDatetime - result[i].endDatetime);
+                                totalTime += Number(d.getDate()) * Number(d.getHours());
+                                //d = new Date(result[i].startDatetime - result[i].endDatetime).getDate();
+                               	 
+                                while(totalTime >= slotTime){
+                                	var wsObject = {"startDatetime":result[i].startDatetime , "endDatetime":result[i].endDatetime , "providerId":result[i].providerId};
+                                   	slotArray.push(wsObject);
+                                    totalTime -=slotTime;
+                                }
+                            }
+                            alert(slotArray);
+                            
+                        } else if (event.type == 'exception') {
+                            alert(event.message + " AND POSITION " + event.where);
+                        } else {
+                            //document.getElementById("responseErrors").innerHTML = event.message;
+                        }
+                    }, 
+                    {escape: true}
+                );     
+            }
+    
+        </script>
+        
+    <button onclick="getRemoteData();">Fetch Workshift</button>
+
+        <!-- <span id="remoteAcctId"/>   -->
+        <table id="tableData">
+        </table> 
+</apex:page>

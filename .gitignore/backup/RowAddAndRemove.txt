@@ -1,0 +1,770 @@
+Visualforce Page:
+
+<apex:page controller="AddMultipleAccountCLS">
+<apex:form id="theForm">
+ <apex:pageblock id="thePB" title="Creating Multiple Accounts">
+  <apex:pageblockButtons >
+   <apex:commandButton value="Save" action="{!SaveMultipleAccounts}"/>
+  
+  </apex:pageblockButtons>
+
+  <apex:outputPanel id="accountHead">
+  ---------> <apex:variable value="{!0}" var="rowNum"/>  
+   <apex:pageBlockSection columns="1" title="Adding Multiple Accounts" id="thePbs" collapsible="False"> 
+   
+     <apex:pageBlockTable value="{!waAccList}" var="eachRecord"> 
+      
+      <apex:column headerValue="Action">
+        <apex:commandLink value="Remove" style="color:red" action="{!removeRowFromAccList}" rendered="{!rowNum > 0}" rerender="accountHead" immediate="true" >
+             <apex:param value="{!rowNum}" name="rowToRemove" assignTo="{!rowToRemove}"/>
+         </apex:commandLink>
+         <apex:variable var="rowNum" value="{!rowNum + 1}"/>
+      </apex:column>
+      
+      <apex:column headerValue="Account Name">
+                            <apex:inputField value="{!eachRecord.record.Name}" required="true"/>
+       </apex:column>
+      
+      <apex:column headerValue="Account Number">
+                            <apex:inputField value="{!eachRecord.record.AccountNumber}" required="true"/>
+       </apex:column>
+       
+       
+       <apex:column headerValue="Account Type">
+                                <apex:inputfield value="{!eachRecord.record.Type}" required="true"/>
+        </apex:column>
+      
+      <apex:column headerValue="Annual Revenue">
+                                <apex:inputField value="{!eachRecord.record.AnnualRevenue}" required="true"/>
+      </apex:column>   
+    
+    </apex:pageBlockTable>
+   </apex:pageBlockSection>
+   <apex:commandButton value="Add More" action="{!addNewRowToAccList}" rerender="accountHead" Status="status" immediate="true" />
+   
+  </apex:outputPanel>
+
+ </apex:pageblock>
+</apex:form>
+  
+</apex:page>
+------------------------------------------------------------------->>>>>>>>
+Controller Class:
+
+
+public with sharing class AddMultipleAccountCLS {
+
+    public PageReference SaveMultipleAccounts() {
+    system.debug('controller save method is calling-->');
+     AddMultipleAccountHelperCLS.save(waAccList);
+    return null;
+    }
+
+
+ public List<WrapperpaAccountList> waAccList {get;set;}
+ public Integer rowToRemove {get;set;}
+
+ public AddMultipleAccountCLS(){
+  waAccList = new List<WrapperpaAccountList>();
+  addNewRowToAccList();
+ }
+ public void removeRowFromAccList(){
+  waAccList = AddMultipleAccountHelperCLS.removeRowToAccountList(rowToRemove, waAccList);
+   
+ }
+
+ public void addNewRowToAccList(){
+     waAccList = AddMultipleAccountHelperCLS.addNewRowToAccList(waAccList);
+    }
+    
+    
+
+ public class WrapperpaAccountList{
+        public Integer index {get;set;}
+        public Account record {get;set;}
+   } 
+}
+
+
+Controller Helper Class:
+
+public class AddMultipleAccountHelperCLS {
+
+    public static List<AddMultipleAccountCLS.WrapperpaAccountList> addNewRowToAccList(List<AddMultipleAccountCLS.WrapperpaAccountList> waAccObjList){
+        AddMultipleAccountCLS.WrapperpaAccountList newRecord = new AddMultipleAccountCLS.WrapperpaAccountList();
+        Account newAccountRecord = new Account();        
+        newRecord.record = newAccountRecord;
+        newRecord.index = waAccObjList.size();
+        waAccObjList.add(newRecord);
+        return waAccObjList;
+    }
+    
+    
+     public static List<AddMultipleAccountCLS.WrapperpaAccountList> removeRowToAccountList(Integer rowToRemove, List<AddMultipleAccountCLS.WrapperpaAccountList> waAccountList){
+        waAccountList.remove(rowToRemove);
+        return waAccountList;
+    }
+    
+    public static void save(List<AddMultipleAccountCLS.WrapperpaAccountList> waAccList) {
+        system.debug('==waAccList==>'+waAccList.size());
+        List<Account> accountRecordsToBeInserted = new List<Account>();
+        if(waAccList !=null && !waAccList.isEmpty()){
+            for(AddMultipleAccountCLS.WrapperpaAccountList eachRecord : waAccList ){
+                Account accTemp = eachRecord.record;
+                accountRecordsToBeInserted.add(accTemp);
+               
+            }
+            system.debug('==accountRecordsToBeInserted==>'+accountRecordsToBeInserted.size());
+            insert accountRecordsToBeInserted;
+        }
+    }
+}
+------------------------->MY
+
+<apex:page controller="AccSearchController"  sidebar="false" tabStyle="account" title="AccSearchPage">
+   <script type="text/javascript">
+       function selectAllCheckboxes(obj,receivedInputID){
+           var inputCheckBox = document.getElementsByTagName("input");                  
+           for(var i=0; i<inputCheckBox.length; i++){          
+               if(inputCheckBox[i].id.indexOf(receivedInputID)!=-1){                                     
+                   inputCheckBox[i].checked = obj.checked;
+               }
+           }
+       }
+   </script>
+   <apex:form id="frm">
+       <apex:pageBlock title="Custom Account Search Page">
+           <apex:inputText value="{!keyword}"/>
+           <apex:commandButton value="search" action="{!search}" />
+       </apex:pageBlock>
+	   
+       <apex:outputPanel rendered="{!screen1}" id="accountHead">
+           <apex:pageBlock id="p2">
+               		<apex:variable value="{!0}" var="rowNum"/> 
+                   <apex:pageBlockTable value="{!listWrap}" var="wrap">
+                       <apex:column >
+                          <apex:facet name="header">
+                               <apex:inputCheckbox onclick="selectAllCheckboxes(this,'inputId')" />
+                           </apex:facet>
+                           <apex:inputCheckbox value="{!wrap.isSelected}" id="inputId" />
+                       </apex:column>
+                       <apex:column value="{!wrap.acc1.name}"/>
+                       <apex:column value="{!wrap.acc1.phone}"/>
+                       <apex:column value="{!wrap.acc1.industry}"/>
+                       <apex:column value="{!wrap.acc1.billingcity}"/>
+                       <apex:column headerValue="Action">
+					   <!-- <apex:commandLink action="{!deleteAcc}" onclick="if(!confirm('Are you sure?')) return false;">Del
+    					<apex:param value="{!wrap.acc1.Id}" name="idToDel" assignTo="{!dealId}"/>
+						</apex:commandLink>  -->
+                           <apex:commandLink value="Del" style="color:red" action="{!removeRowFromAccList}" 
+                                             rerender="frm,accountHead" onclick="if(!confirm('Are you sure?')) return false;">
+             				<apex:param value="{!rowNum}" name="rowToRemove" assignTo="{!rowToRemove}"/>
+         					
+                           </apex:commandLink>&nbsp;|&nbsp;<apex:commandLink value="Create Contact" action="CreateRelCon" />
+                           <apex:variable var="rowNum" value="{!rowNum + 1}"  />
+                       </apex:column>
+                   </apex:pageBlockTable>
+               
+                <apex:pageBlockButtons >
+                    <apex:commandButton value="edit" action="{!edit}" />
+                </apex:pageBlockButtons>
+                
+           </apex:pageBlock>
+           </apex:outputPanel>
+           
+		   <apex:outputPanel rendered="{!!screen1}">
+           <apex:pageBlock title="Edit,Delete,Create Related Contact">
+               <apex:pageBlockTable value="{!listwrap}" var="wrap">
+                         <apex:column >
+                            <apex:inputText value="{!wrap.acc1.name}"/>
+                         </apex:column>
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.phone}"/>
+                            </apex:column> 
+                  		 <apex:column >
+                               <apex:inputText value="{!wrap.acc1.industry}"/>
+                         </apex:column> 
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.billingcity}"/>
+                         </apex:column>
+                        </apex:pageBlockTable>
+                <apex:commandButton value="save" action="{!save}" />
+        </apex:pageblock> 
+               
+        </apex:outputPanel>
+   </apex:form>
+</apex:page>
+
+========
+ public Account acc2{get;set;}
+    
+    public void removeRowFromAccList(){
+       //screen1=false;
+       //waAccList = AddMultipleAccountHelperCLS.removeRowToAccountList(rowToRemove, waAccList);
+       rowNum = Integer.valueOf(apexpages.currentpage().getparameters().get('rowToRemove'));
+        System.debug('#######> rowNum ' + rowNum);
+       listWrap.remove(rowNum); 
+         System.debug('#######> listWrap ' + listWrap);
+        acc2 = new account();
+        acc2 = listWrap[rowNum].acc1;
+        delete acc2;
+         System.debug('#######> acc2 ' + acc2);
+   }
+   
+   
+   ---------------------------=========>>>>>Assgnment ROW related con ADD controller
+   
+   public class AccSearchController {
+
+   public Boolean screen1 { get; set; }
+   public string screen2 { get; set; }
+   public  string keyword{get;set;}
+   public List<Account> acc{get;set;}
+   public List<WrapCheck> listWrap{get;set;}
+   public List<WrapCheck> list1 {get;set;}
+    
+    public pagereference save(){
+       List<account> updatedaccount = new List<account>();
+       List<WrapCheck> wraplst1 = list1;
+       For(Integer i=0;i<wraplst1.size();i++){ 					//
+               updatedaccount.add(wraplst1[i].acc1);
+       }
+       update updatedaccount;
+       PageReference pageRef = new Pagereference('/apex/AccSearch?=""');
+       pageRef.setRedirect(true);
+       return pageRef;
+   }
+    
+     public pagereference edit(){
+         screen2 = '2';
+   		screen1  = false;
+       list1 = new List<WrapCheck>();
+       for(WrapCheck a1 : listWrap){
+           if(a1.isSelected == True){
+           list1.add(a1);
+           }
+       }
+       listwrap = list1;
+       return null;
+   }
+    
+   //
+    
+   //public String dealId {get;set;} 
+   public Integer rowToRemove {get;set;}
+   public Integer rowNum {get;set;} 
+   public Account acc2{get;set;}
+    
+    public void removeRowFromAccList(){
+       //screen1=false;
+       rowNum = Integer.valueOf(apexpages.currentpage().getparameters().get('rowToRemove'));
+        System.debug('#######> rowNum ' + rowNum);
+       listWrap.remove(rowNum); 
+         System.debug('#######> listWrap ' + listWrap);
+        acc2 = new account();
+        acc2 = listWrap[rowNum].acc1;
+        delete acc2;
+         System.debug('#######> acc2 ' + acc2);
+   }
+   
+    // for creating child Contacts
+    public account a{get; set;}
+    public integer rowToAdd{get; set;}
+    public list<contact> contacts{get; set;}
+    
+    public pageReference CreateRelCon(){					//		//
+        screen2 = '3';
+        rowNum = Integer.valueOf(apexpages.currentpage().getparameters().get('rowToAdd'));	
+        a = new account();
+        a = listWrap[rowNum].acc1;
+        contacts = new list<contact>();
+        
+        return null;
+    }
+	
+    public pageReference saveCon(){
+        for(integer i=0;i<contacts.size();i++){
+            //insert contacts;
+        }
+        insert contacts;
+       PageReference pageRef = new Pagereference('/apex/AccSearch?=""');
+       pageRef.setRedirect(true);
+       return pageRef; 
+    }
+    public void Add(){
+        contact c = new contact();
+        c.accountid=a.id;
+        contacts.add(c);
+    }
+    
+   public AccSearchController(){
+       listWrap = new List<WrapCheck>();
+       acc = new List<Account>();
+       screen1  = true;
+
+   }
+   
+   public pagereference search(){
+       screen2 = '1';
+       listWrap = new List<WrapCheck>();
+       for(account acc : [select id,name,phone,industry,billingcity from account where Name LIKE: '%'+ keyword +'%' LIMIT 10]){
+           listWrap.add(new WrapCheck(acc));
+       }
+       return null;
+   }
+   
+  
+
+   //wrapper Class
+   public class WrapCheck{
+       public account acc1{get;set;}
+       public boolean isSelected{get;set;}
+       
+       public wrapCheck(account a){
+           this.acc1 = a;
+           this.isSelected = false;
+       }
+   }
+}
+
+
+----------------------------------->VF Page
+
+<apex:page controller="AccSearchController"  sidebar="false" tabStyle="account" title="AccountSearchPage">
+   <script type="text/javascript">
+       function selectAllCheckboxes(obj,receivedInputID){
+           var inputCheckBox = document.getElementsByTagName("input");                  
+           for(var i=0; i<inputCheckBox.length; i++){          
+               if(inputCheckBox[i].id.indexOf(receivedInputID)!=-1){                                     
+                   inputCheckBox[i].checked = obj.checked;
+               }
+           }
+       }
+   </script>
+   <apex:form id="frm">
+       <apex:pageBlock title="Custom Account Search">
+           <apex:inputText value="{!keyword}"/>
+           <apex:commandButton value="search" action="{!search}" />
+       </apex:pageBlock>
+	   
+       <apex:outputPanel rendered="{!screen2 == '1'}" id="accountHead">
+           <apex:pageBlock id="p2">
+               		<apex:variable value="{!0}" var="rowNum"/> 
+                   <apex:pageBlockTable value="{!listWrap}" var="wrap">
+                       <apex:column >
+                          <apex:facet name="header">
+                               <apex:inputCheckbox onclick="selectAllCheckboxes(this,'inputId')" />
+                           </apex:facet>
+                           <apex:inputCheckbox value="{!wrap.isSelected}" id="inputId" />
+                       </apex:column>
+                       <apex:column headerValue="Account Name" value="{!wrap.acc1.name}"/>
+                       <apex:column headerValue="Phone" value="{!wrap.acc1.phone}"/>
+                       <apex:column headerValue="Industry" value="{!wrap.acc1.industry}"/>
+                       <apex:column headerValue="BillingCity" value="{!wrap.acc1.billingcity}"/>
+                       <apex:column headerValue="Action">
+					   <!-- <apex:commandLink action="{!deleteAcc}" onclick="if(!confirm('Are you sure?')) return false;">Del
+    					<apex:param value="{!wrap.acc1.Id}" name="idToDel" assignTo="{!dealId}"/>
+						</apex:commandLink>  -->
+                           <apex:commandLink value="Del" style="color:red" action="{!removeRowFromAccList}" 
+                                             rerender="frm,accountHead" onclick="if(!confirm('Are you sure?')) return false;">
+             				<apex:param value="{!rowNum}" name="rowToRemove" assignTo="{!rowToRemove}"/>
+                           </apex:commandLink>&nbsp;|&nbsp;<apex:commandLink value="Create Contact" action="{!CreateRelCon}" rerender="frm,accountHead">
+                           <apex:param value="{!rowNum}" name="rowToAdd" assignTo="{!rowToAdd}"/></apex:commandLink>
+                           <apex:variable var="rowNum" value="{!rowNum + 1}"  />
+                       </apex:column>
+                   </apex:pageBlockTable>
+               
+                <apex:pageBlockButtons >
+                    <apex:commandButton value="edit" action="{!edit}" />
+                </apex:pageBlockButtons>
+                
+           </apex:pageBlock>
+           </apex:outputPanel>
+           
+		   <apex:outputPanel rendered="{!screen2 == '2'}">
+           <apex:pageBlock title="Edit,Delete">
+               <apex:pageBlockTable value="{!listwrap}" var="wrap">
+                         <apex:column >
+                            <apex:inputText value="{!wrap.acc1.name}"/>
+                         </apex:column>
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.phone}"/>
+                            </apex:column> 
+                  		 <apex:column >
+                               <apex:inputText value="{!wrap.acc1.industry}"/>
+                         </apex:column> 
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.billingcity}"/>
+                         </apex:column>
+                        </apex:pageBlockTable>
+                <apex:commandButton value="save" action="{!save}" />
+        </apex:pageblock>     
+        </apex:outputPanel>
+       
+       <apex:outputPanel rendered="{!screen2 == '3'}">
+           <apex:pageBlock title="Create Related Contact">
+               <apex:outputLabel >{!a.name}</apex:outputLabel>
+               <apex:pageBlockTable value="{!contacts}" var="con">
+                         <apex:column headerValue="Last Name">
+                            <apex:inputField value="{!con.lastname}"/>
+                         </apex:column>
+                         <apex:column headerValue="First Name">
+                            <apex:inputField value="{!con.firstname}"/>
+                         </apex:column>
+                         <apex:column headerValue="Phone">
+                            <apex:inputField value="{!con.Phone}"/>
+                            </apex:column> 
+                  		 <apex:column headerValue="Email">
+                            <apex:inputField value="{!con.Email}"/>
+                         </apex:column> 
+                        </apex:pageBlockTable>
+                <apex:commandButton value="save" action="{!saveCon}" />
+                <apex:commandButton value="Add" action="{!Add}" />
+        </apex:pageblock>
+       </apex:outputPanel>
+   </apex:form>
+</apex:page>
+
+
+************************************=============================>>>>> 3rd UPdate
+<apex:page controller="AccSearchController"  sidebar="false" tabStyle="account" title="AccountSearchPage">
+   <script type="text/javascript">
+       function selectAllCheckboxes(obj,receivedInputID){
+           var inputCheckBox = document.getElementsByTagName("input");                  
+           for(var i=0; i<inputCheckBox.length; i++){          
+               if(inputCheckBox[i].id.indexOf(receivedInputID)!=-1){                                     
+                   inputCheckBox[i].checked = obj.checked;
+               }
+           }
+       }
+   </script>
+   <apex:form id="frm">
+       <apex:pageBlock title="Custom Account Search">
+           <apex:inputText value="{!keyword}"/>
+           <apex:commandButton value="search" action="{!search}" />
+       </apex:pageBlock>
+	   
+       <apex:outputPanel rendered="{!screen2 == '1'}" id="accountHead">
+           <apex:pageBlock id="p2">
+               		<apex:variable value="{!0}" var="rowNum"/>
+               
+               		<apex:pageBlockButtons location="top" >
+   						<!-- <apex:outputPanel id="myButtons">  -->
+        				<apex:commandButton action="{!Beginning}" title="Beginning" value="<<" disabled="{!disablePrevious}" reRender="accountHead,myRec"/>
+        				<apex:commandButton action="{!Previous}" title="Previous" value="<" disabled="{!disablePrevious}" reRender="accountHead,myRec"/>        
+        				<apex:commandButton action="{!Next}" title="Next" value=">" disabled="{!disableNext}" reRender="accountHead,myRec"/>
+        				<apex:commandButton action="{!End}" title="End" value=">>" disabled="{!disableNext}" reRender="accountHead,myRec"/>        
+   						<!--</apex:outputPanel>-->
+   					</apex:pageBlockButtons>
+               		<apex:outputLabel>{!counter} - {!counter+20} of {!total_size}</apex:outputLabel>
+                   <apex:pageBlockTable value="{!listWrap}" var="wrap" id="myRec">  <!-- rendered="{!NOT(ISNULL(listWrap.acc))}" -->
+                   
+                       <apex:column >		<!-- calling javascript method   for ALERT-->
+                          <apex:facet name="header">
+                               <apex:inputCheckbox onclick="selectAllCheckboxes(this,'inputId')" />
+                           </apex:facet>
+                           <apex:inputCheckbox value="{!wrap.isSelected}" id="inputId" />
+                       </apex:column>
+                       
+                       <apex:column >
+         					<apex:facet name="header">   
+           					<apex:commandLink action="{!ViewData}" value="Account Name{!IF(sortExpression=='name',IF(sortDirection='ASC','▼','▲'),'')}" id="cmdSort">
+            				<apex:param value="name" name="column" assignTo="{!sortExpression}" ></apex:param>
+           					</apex:commandLink>
+         					</apex:facet>
+         				<apex:outputLink value="/{!wrap.acc1.Id}" target="_blank">{!wrap.acc1.Name}</apex:outputLink>
+       				   </apex:column>
+                       <apex:column headerValue="Phone" value="{!wrap.acc1.phone}"/>
+                       <apex:column headerValue="Industry" value="{!wrap.acc1.industry}"/>
+                       <apex:column headerValue="BillingCity" value="{!wrap.acc1.billingcity}"/>
+                       <apex:column headerValue="Action">
+					   <!-- <apex:commandLink action="{!deleteAcc}" onclick="if(!confirm('Are you sure?')) return false;">Del
+    					<apex:param value="{!wrap.acc1.Id}" name="idToDel" assignTo="{!dealId}"/>
+						</apex:commandLink>  -->
+                           
+                           <apex:commandLink value="Del" style="color:red" action="{!removeRowFromAccList}" 
+                                             rerender="frm,accountHead" onclick="if(!confirm('Are you sure?')) return false;">
+             				<apex:param value="{!rowNum}" name="rowToRemove" assignTo="{!rowToRemove}"/>
+                           </apex:commandLink>&nbsp;|&nbsp;<apex:commandLink value="Create Contact" action="{!CreateRelCon}" rerender="frm,accountHead">
+                           <apex:param value="{!rowNum}" name="rowToAdd" assignTo="{!rowToAdd}"/></apex:commandLink>
+                           <apex:variable var="rowNum" value="{!rowNum + 1}"  />
+                       </apex:column>
+                   
+               </apex:pageBlockTable>
+               
+                <apex:pageBlockButtons >
+                    <apex:commandButton value="edit" action="{!edit}" />
+                </apex:pageBlockButtons>
+                
+           </apex:pageBlock>
+           </apex:outputPanel>
+           
+		   <apex:outputPanel rendered="{!screen2 == '2'}">
+           <apex:pageBlock title="Edit,Delete">
+               <apex:pageBlockTable value="{!listwrap}" var="wrap">
+                         <apex:column >
+                            <apex:inputText value="{!wrap.acc1.name}"/>
+                         </apex:column>
+                         <apex:column >
+                               <apex:inputText value="{!wrap.acc1.phone}"/>
+                            </apex:column> 
+                  		 <apex:column >
+                               <apex:inputText value="{!wrap.acc1.industry}"/>
+                         </apex:column> 
+                         <apex:column > 
+                               <apex:inputText value="{!wrap.acc1.billingcity}"/>
+                         </apex:column>
+                        </apex:pageBlockTable>
+                <apex:commandButton value="save" action="{!save}" />
+        </apex:pageblock>     
+        </apex:outputPanel>
+       
+       <apex:outputPanel rendered="{!screen2 == '3'}">
+           <apex:pageBlock title="Create Related Contact">
+               <apex:outputLabel >{!a.name}</apex:outputLabel>
+               <apex:pageBlockTable value="{!contacts}" var="con">
+                         <apex:column headerValue="Last Name">
+                            <apex:inputField value="{!con.lastname}"/>
+                         </apex:column>
+                         <apex:column headerValue="First Name">
+                            <apex:inputField value="{!con.firstname}"/>
+                         </apex:column>
+                         <apex:column headerValue="Phone">
+                            <apex:inputField value="{!con.Phone}"/>
+                            </apex:column> 
+                  		 <apex:column headerValue="Email">
+                            <apex:inputField value="{!con.Email}"/>
+                         </apex:column> 
+                        </apex:pageBlockTable>
+                <apex:commandButton value="save" action="{!saveCon}" />
+                <apex:commandButton value="Add" action="{!Add}" />
+        </apex:pageblock>
+       </apex:outputPanel>
+   </apex:form>
+</apex:page>
+
+---------------------------------------------->>>>>>>>>>>
+
+public class AccSearchController {
+
+   public Boolean screen1 { get; set; }
+   public string screen2 { get; set; }
+   public  string keyword{get;set;}
+   public List<Account> acc{get;set;}
+   public List<WrapCheck> listWrap{get;set;}
+   public List<WrapCheck> list1 {get;set;}
+    
+    // Edit Page
+    
+    public pagereference save(){
+       List<account> updatedaccount = new List<account>();
+       List<WrapCheck> wraplst1 = list1;
+       For(Integer i=0;i<wraplst1.size();i++){ 					//
+               updatedaccount.add(wraplst1[i].acc1);
+       }
+       update updatedaccount;
+       PageReference pageRef = new Pagereference('/apex/AccSearch?=""');
+       pageRef.setRedirect(true);
+       return pageRef;
+   }
+    
+     public pagereference edit(){
+         screen2 = '2';
+   		//screen1  = false;
+       list1 = new List<WrapCheck>();
+       for(WrapCheck a1 : listWrap){
+           if(a1.isSelected == True){
+           list1.add(a1);
+           }
+       }
+       listwrap = list1;
+       return null;
+   }
+    
+   //	Delete An Account
+    
+   public Integer rowToRemove {get;set;}
+   public Integer rowNum {get;set;} 
+   public Account acc2{get;set;}
+    
+    public void removeRowFromAccList(){
+       //screen1=false;
+       rowNum = Integer.valueOf(apexpages.currentpage().getparameters().get('rowToRemove'));
+        System.debug('#######> rowNum ' + rowNum);
+       listWrap.remove(rowNum); 
+         System.debug('#######> listWrap ' + listWrap);
+        acc2 = new account();
+        acc2 = listWrap[rowNum].acc1;
+        delete acc2;
+         System.debug('#######> acc2 ' + acc2);
+   }
+   
+    // creating child Contacts - 3 Methods
+    
+    public account a{get; set;}
+    public integer rowToAdd{get; set;}
+    public list<contact> contacts{get; set;}
+    
+    public pageReference CreateRelCon(){					//		//
+        screen2 = '3';
+        rowNum = Integer.valueOf(apexpages.currentpage().getparameters().get('rowToAdd'));	
+        a = new account();
+        a = listWrap[rowNum].acc1;
+        contacts = new list<contact>();
+        
+        return null;
+    }
+	
+    public pageReference saveCon(){
+        for(integer i=0;i<contacts.size();i++){
+            //insert contacts;
+        }
+        insert contacts;
+       PageReference pageRef = new Pagereference('/apex/AccSearch?=""');
+       pageRef.setRedirect(true);
+       return pageRef; 
+    }
+    public void Add(){
+        contact c = new contact();
+        c.accountid=a.id;
+        contacts.add(c);
+    }
+    
+    
+    // Sorting
+    private String sortDirection = 'ASC';
+	private String sortExp = 'name';
+    private List<Account> accounts;
+
+    public PageReference ViewData() {
+       //build the full sort expression
+       string sortFullExp = sortExpression  + ' ' + sortDirection;
+       string criteria =  '%'+ keyword +'%';
+       listWrap = new list<WrapCheck>();
+       //query the database based on the sort expression
+       accounts = Database.query('Select Name, Phone, Industry, BillingCity  from Account where Name LIKE: criteria order by ' + sortFullExp +' limit '+ list_size +  ' offset '+ counter);			//  + ' limit 10'
+        for(account acc : accounts){
+            listWrap.add(new WrapCheck(acc));
+        }
+        return null;
+    }
+	
+	public List<Account> getAccounts() {return accounts;}
+    
+    public String sortExpression{
+     get
+     {
+        return sortExp;
+     }
+     set
+     {
+       //if the column is clicked on then switch between Ascending and Descending modes
+       if (value == sortExp)
+         sortDirection = (sortDirection == 'ASC')? 'DESC' : 'ASC';
+       else
+         sortDirection = 'ASC';
+       sortExp = value;
+     }
+   }
+
+ 	public String getSortDirection(){
+    //if not column is selected 
+    	if (sortExpression == null || sortExpression == '')
+      		return 'ASC';
+    	else
+     		return sortDirection;
+ 	}
+ 	public void setSortDirection(String value){  
+    	sortDirection = value;
+ 	}
+  
+    
+    // Pagination
+    public integer counter{get; set;}  //keeps track of the offset
+    private integer list_size=20; //sets the page size or number of rows
+    public integer total_size{get; set;} //used to show user the total size of the list
+    //public integer count{get; set;}
+   public PageReference Beginning() { //user clicked beginning
+      counter = 0;
+       viewData();
+      return null;
+   }
+
+   public PageReference Previous() { //user clicked previous button
+      counter -= list_size;
+      viewData();
+       return null;
+   }
+
+   public PageReference Next() { //user clicked next button
+      counter += list_size;
+      viewData();
+       return null;
+   }
+
+   public PageReference End() { //user clicked end
+      counter = total_size - math.mod(total_size, list_size);
+      viewData();
+       return null;
+   }
+
+   public Boolean getDisablePrevious() { 
+      //this will disable the previous and beginning buttons
+      if (counter>0) return false; else return true;
+   }
+
+   public Boolean getDisableNext() { //this will disable the next and end buttons
+      if (counter + list_size < total_size) return false; else return true;
+   }
+
+   public Integer getTotal_size() {
+      return total_size;
+   }
+
+   public Integer getPageNumber() {
+      return counter/list_size + 1;
+   }
+
+   public Integer getTotalPages() {
+      if (math.mod(total_size, list_size) > 0) {
+         return total_size/list_size + 1;
+      } else {
+         return (total_size/list_size);
+      }
+   }
+ 
+    
+    
+    
+    // Constructor
+   public AccSearchController(){
+       listWrap = new List<WrapCheck>();
+       acc = new List<Account>();
+       screen1  = true;
+       total_size = [select count() from account];
+	   counter=0;
+   }
+   
+   public pagereference search(){
+       screen2 = '1';
+       listWrap = new List<WrapCheck>();
+       for(account acc : [select id,name,phone,industry,billingcity from account where Name LIKE: '%'+ keyword +'%' limit :list_size  offset :counter]){			//LIMIT 10
+           listWrap.add(new WrapCheck(acc));
+       }
+       return null;
+   }
+   
+  
+
+   //wrapper Class
+   public class WrapCheck{
+       public account acc1{get;set;}
+       public boolean isSelected{get;set;}
+       
+       public wrapCheck(account a){
+           this.acc1 = a;
+           this.isSelected = false;
+       }
+   }
+}
+------------------------------------------------------------

@@ -1,0 +1,3207 @@
+Class.AppointmentSynchronizationTest.delCanceledEventTest: line 2997, column 1
+SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+
+  static testMethod void appointmentToEventSingleTest(){
+        User us = createUser();
+        insert us;
+        
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = '';
+        cslSync.Appointment_Fields__c = '';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+		
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+		
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+		
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app = TestCreateObject.getEvent();
+        app.Voice_Reminder__c = '1 Day Prior';
+        app.IsAllDayEvent__c=true;
+        app.RecurrenceStartDate__c=Date.today();
+        app.RecurrenceType__c = 'RecursDaily';
+        insert app;
+		
+        app.Event_Id__c=app.id;
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursEveryWeekday';
+        insert app1;
+		
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app, false, false);
+        Test.stoptest();
+    }
+    
+    public static List<EventParticipant__c> createAppointmentParticipantsWithoutLead(Id appId, Id pId){
+    SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+      insert cs;
+        List<EventParticipant__c> ePar = new List<EventParticipant__c>();
+        EventParticipant__c ep = new EventParticipant__c();
+        
+        ep.Customer__c = pid;
+        ep.Event__c = appId;
+        ep.ParticipantStatus__c = 'Confirmed';
+        ePar.add(ep);
+        ep = new EventParticipant__c();
+        
+        Account acc = new Account(name = 'TestAcc');
+        insert acc;
+        Contact con = TestCreateObject.getContact();
+        con.AccountId = acc.id;
+        insert con;
+        
+        ep.Customer__c = con.id;
+        ep.Event__c = appId;
+        ep.ParticipantStatus__c = 'Awaiting';
+        ePar.add(ep);
+        
+        // add lead as participants
+        ep = new EventParticipant__c();
+        Contact c = dummyContact();
+        //Lead l = getLead();
+        //ep.Lead__c = l.id;
+        ep.Customer__c = c.id;
+        ep.Event__c = appId;
+        ep.ParticipantStatus__c = 'Declined';
+        ePar.add(ep);
+        
+        insert ePar;
+        System.debug('test event participants... '+ePar);
+        return ePar;
+    }
+    
+	AFTER UPDATE 7/6/2017
+	
+	
+@isTest
+private class AppointmentSynchronizationTest{
+static List<Event> getEvent(Id uId){
+        List<Event> listEvent = new List<Event>();
+        Event ev= new Event(
+            OwnerId = uId,
+            StartDateTime = DateTime.now(),
+            EndDateTime = DateTime.now().addHours(1),
+            Subject = 'Test Single Event',
+            Description =  'Web Conference Details: ',
+            ShowAs = 'Free'
+        );
+        listEvent.add(ev);
+        return listEvent;
+}
+static testMethod void updateChildEventInfoTest(){
+     User us = createUser();
+        insert us;
+    
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;   
+        list<event> evtList=getEvent(us.id);
+        evtList[0].ownerid=us.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].RecurrenceStartDateTime=date.today();
+        insert evtList;   
+        list<string> evtfields=new list<string>();
+        evtfields.add('subject');
+        evtfields.add('location');
+        evtfields.add('showas');
+     AppointmentSynchronization.updateChildEventInfo(evtList,listEvent[0],evtfields);
+    
+        
+}
+static testMethod void appointmentToEventSyncOnlyAppTest(){
+        User us = createUser();
+        insert us; 
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = '';
+        cslSync.Appointment_Fields__c = '';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+    
+        
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        app.RecurrenceEvent__c=app.id;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        list<event> evtList=getEvent(us.id);
+        evtList[0].ownerid=us.id;
+        evtList[0].AppointmentId__c=app.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].location='abc';
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].RecurrenceStartDateTime=datetime.now();
+        insert evtList;
+        list<Event> eventLst = [SELECT id, AppointmentId__c, RecurrenceActivityId, OwnerId FROM Event WHERE RecurrenceActivityId =: evtList[0].Id];
+        system.debug('@@@eventLst'+eventLst);
+
+        list<EventParticipant__c> listep=createAppointmentParticipants(app.id,provider.id);
+        AppointmentSynchronization.appointmentToEventSyncOnlyThis(listep);
+        AppointmentSynchronization.mapRecurringIdsApp(eventLst);
+        AppointmentSynchronization.appointmentToEventSyncOnlyApp(evtList[0],listep);
+}
+static testMethod void appointmentToEventSyncOnlyAppTest1(){
+    User us = createUser();
+        insert us; 
+    Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = '';
+        cslSync.Appointment_Fields__c = '';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        list<event> evtList=getEvent(us.id);
+        evtList[0].ownerid=us.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].RecurrenceStartDateTime=date.today();
+        insert evtList;
+    
+        Event__c app = TestCreateObject.getEvent();
+        app.Status__c='Canceled';
+        app.User_web_conference_details__c='aaaaaaa';
+        app.Description__c='aaaaaa';
+        app.Event_Id__c=evtList[0].id;
+        app.IsAllDayEvent__c=true;
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        list<EventParticipant__c> listep=createAppointmentParticipants(app.id,provider.id);
+        AppointmentSynchronization.appointmentToEventSyncOnlyThis(listep);
+        AppointmentSynchronization.appointmentToEventSyncOnlyApp(evtList[0],listep);
+        
+}
+static testMethod void appointmentToEventSyncOnlyAppTest2(){
+    User us = createUser();
+        insert us; 
+    Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        Event__c app = TestCreateObject.getEvent();
+        app.isAllDayEvent__c=true;
+        insert app;
+Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        list<event> evtList=getEvent(us.id);
+        evtList[0].ownerid=us.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].RecurrenceStartDateTime=date.today();
+        insert evtList;
+        list<EventParticipant__c> listep=createAppointmentParticipants(app.id,provider.id);
+    AppointmentSynchronization.appointmentToEventSyncOnlyApp(evtList[0],listep);
+}
+
+static testmethod void coverMapMethod(){
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        User us = createUser();
+        insert us; 
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        provider.User__c = us.Id;
+        insert provider;  
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        app.RecurrenceEvent__c=app.id;
+        EventParticipant__c ep = new EventParticipant__c();
+        ep.Customer__c = provider.id;
+        ep.Event__c = app.Id;
+        ep.ParticipantStatus__c = 'Confirmed'; 
+        insert ep;
+        Account acc = new Account();
+        acc.name = 'TestAcc1';
+        insert acc;
+        Contact con = TestCreateObject.getContact();
+        con.FirstName = 'Dummy';
+        con.LastName = 'Contact';
+        con.AccountId = acc.id;
+        insert con;
+        list<event> evtList=getEvent(us.id);
+        evtList[0].AppointmentId__c=app.id;
+        evtList[0].ownerid=us.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].RecurrenceStartDateTime=date.today();
+        insert evtList;
+        EventRelation eRelation = new EventRelation();
+        eRelation.EventId = evtList[0].id;eRelation.RelationId = getLead().id;eRelation.Status ='Accepted';
+        insert eRelation;
+        AppointmentSynchronization.mapRecurringIds(evtList);
+}
+public static Lead getLead(){
+        Lead l = new Lead(
+            FirstName='Test firstName',
+            LastName = 'Test LastName',
+            Company = 'BOT',
+            Status = 'Open - Not Contacted'
+            );
+
+       insert l;
+       return l;
+    }
+public static User createUser(){
+        User user = new User();
+        user.FirstName = 'Test';
+        user.LastName = 'Code1';
+        user.CompanyName = 'IT Test Company';
+        user.MobilePhone = '123-456-7890';
+        user.Username = 'testcode123456@bitorder.com';
+        user.Email = 'testcode123456@bitorder.com';
+        user.Alias = 'test1';
+        user.CommunityNickname = 'test11';
+        user.TimeZoneSidKey = 'America/New_York';
+        user.LocaleSidKey = 'en_US';
+        user.EmailEncodingKey = 'UTF-8';
+        Profile p = [SELECT Id FROM Profile WHERE Name='Standard User'];
+        user.ProfileId = p.Id;
+        user.LanguageLocaleKey = 'en_US';
+        user.Street = '123 Test St';
+        user.City = 'Testcity';
+        user.State = 'va';
+        user.PostalCode = '23223';
+        user.Country = 'USA';
+        //insert user;
+        return user;
+    }
+    public static List<EventParticipant__c> createAppointmentParticipants(Id appId, Id pId){
+    SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+      insert cs;
+        List<EventParticipant__c> ePar = new List<EventParticipant__c>();
+        EventParticipant__c ep = new EventParticipant__c();
+        
+        ep.Customer__c = pid;
+        ep.Event__c = appId;
+        ep.ParticipantStatus__c = 'Confirmed';
+        ePar.add(ep);
+        ep = new EventParticipant__c();
+        
+        Account acc = new Account(name = 'TestAcc');
+        insert acc;
+        Contact con = TestCreateObject.getContact();
+        con.AccountId = acc.id;
+        insert con;
+        
+        ep.Customer__c = con.id;
+        ep.Event__c = appId;
+        ep.ParticipantStatus__c = 'Awaiting';
+        ePar.add(ep);
+        
+        // add lead as participants
+        ep = new EventParticipant__c();
+        Contact c = dummyContact();
+        Lead l = getLead();
+        ep.Lead__c = l.id;
+        ep.Customer__c = c.id;
+        ep.Event__c = appId;
+        ep.ParticipantStatus__c = 'Declined';
+        ePar.add(ep);
+        
+        insert ePar;
+        System.debug('test event participants... '+ePar);
+        return ePar;
+    }
+    public static Contact dummyContact(){
+        Account acc = new Account();
+        acc.name = 'TestAcc1234';
+        insert acc;
+        Contact dummy = new Contact();
+        dummy.FirstName = 'Dummy';
+        dummy.LastName = 'Contact';
+        dummy.AccountId = acc.id;
+        insert dummy;
+        return dummy;
+    }
+public static List<EventRelation> getEventRelation(Id eId){
+        List<EventRelation> listER = new List<EventRelation>();
+        Account acc = new Account();
+        acc.name = 'TestAcc1';
+        insert acc;
+        Contact con = TestCreateObject.getContact();
+        con.AccountId = acc.id;
+        insert con;
+        EventRelation eRelation = new EventRelation(EventId = eId,RelationId = con.id,Status ='Accepted');
+        listER.add(eRelation);
+        acc = new Account();
+        acc.name = 'TestAcc2';
+        insert acc;
+        con = TestCreateObject.getContact();
+        con.FirstName = 'Test FirstName222';
+        con.AccountId = acc.id;
+        insert con;
+        eRelation = new EventRelation(EventId = eId,RelationId = con.id,Status ='Accepted');
+        listER.add(eRelation);
+        User us = createUser();
+        us.Username = 'testcode123@bitorder.com';
+        us.Alias = 'test1222';
+        us.CommunityNickname = 'test222';
+        insert us;
+        eRelation = new EventRelation(EventId = eId,RelationId = us.id,Status ='Accepted');
+        listER.add(eRelation);
+        Lead l = getLead();
+        eRelation = new EventRelation(EventId = eId,RelationId = l.id,Status ='Accepted');
+        listER.add(eRelation);
+        return listER;
+    }
+static testMethod void abc1(){
+        User us = createUser();
+        insert us;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 2;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc2(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursDaily';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 2;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc3(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 2;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc4(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 64;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc5(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 32;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc6(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 16;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc7(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 8;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc8(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 4;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc9(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursEveryWeekday';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 1;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc10(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 64;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc11(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 32;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc12(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 16;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc13(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 8;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc14(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 4;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    
+    static testMethod void abc15(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 2;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc16(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursWeekly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceDayOfWeekMask = 1;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc17(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfMonth=2;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc18(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='First';
+        listEvent[0].RecurrenceDayOfWeekMask = 127;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc19(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Second';
+        listEvent[0].RecurrenceDayOfWeekMask = 64;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc20(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Third';
+        listEvent[0].RecurrenceDayOfWeekMask = 32;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc21(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Fourth';
+        listEvent[0].RecurrenceDayOfWeekMask = 16;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+        static testMethod void abc22(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceDayOfWeekMask = 8;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+       static testMethod void abc23(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 4;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc24(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 2;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc25(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursMonthlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 1;
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc26(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearly';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc27(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='First';
+        listEvent[0].RecurrenceDayOfWeekMask = 127;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+        static testMethod void abc28(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Second';
+        listEvent[0].RecurrenceDayOfWeekMask = 64;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+        static testMethod void abc29(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Third';
+        listEvent[0].RecurrenceDayOfWeekMask = 32;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc30(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Fourth';
+        listEvent[0].RecurrenceDayOfWeekMask = 16;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc31(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceDayOfWeekMask = 8;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+        static testMethod void abc32(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 4;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc33(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 2;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc34(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].AppointmentId__c=app.id;
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceStartDateTime=date.today();
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 1;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    static testMethod void abc35(){
+        User us = createUser();
+        insert us;
+        account acc=new account(name='abc');
+        insert acc;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = 'description';
+        cslSync.Appointment_Fields__c = 'description__c, Voice_Reminder__c, Email_Reminder__c, Text_Reminder__c, Second_Text_Reminder__c ';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        location__c loc=new location__c();
+        loc.name='Other';
+        insert loc;
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        insert servi;
+        List<Event> listEvent = getEvent(us.id);
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        createAppointmentParticipants(app.id,provider.id);
+        listEvent[0].RecurrenceType='RecursYearlyNth';
+        listEvent[0].whatid=acc.id;
+        listEvent[0].AppointmentId__c=app.id;
+        listEvent[0].isAllDayEvent=true;
+        listEvent[0].StartDateTime=datetime.now();
+        listEvent[0].EndDateTime=datetime.now();
+        listEvent[0].isRecurrence=true;
+        listEvent[0].RecurrenceStartDateTime=date.today();
+        listEvent[0].RecurrenceEndDateOnly=date.newinstance(2015,08,10);
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfWeekMask = 1;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        listEvent[0].location='Other';
+        listEvent[0].subject='Other';
+        AppointmentSynchronization.eventToAppointmentRecurring(listEvent);
+    }
+    
+    public static void createCalSetting(id uId, string eventField, string appField){
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = '';
+        cslSync.Appointment_Fields__c = '';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        
+        List<Calendar_Sync_User__c> calSyncLst = new List<Calendar_Sync_User__c>();
+        calSyncLst.add(new Calendar_Sync_User__c(UserConfigurationAssociation__c = uId, Calendar_Sync__c = cslSync.id));
+        list<user> userLst = [select id, profileid from user where id=: uid];
+        if(userLst.size()>0)calSyncLst.add(new Calendar_Sync_User__c(Profile__c = userLst[0].profileid, Calendar_Sync__c = cslSync.id));
+        //c.UserConfigurationAssociation__c = uId;
+        //c.Calendar_Sync__c = cslSync.id;
+        insert calSyncLst;
+    }
+    
+    static testMethod void appointmentToEventSingleTest(){
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = '';
+        cslSync.Appointment_Fields__c = '';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app = TestCreateObject.getEvent();
+        app.Voice_Reminder__c = '1 Day Prior';
+        app.IsAllDayEvent__c=true;
+        app.RecurrenceStartDate__c=Date.today();
+        app.RecurrenceType__c = 'RecursDaily';
+        insert app;
+        
+        app.Event_Id__c=app.id;
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursEveryWeekday';
+        insert app1;
+        
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        
+        //listEP[0].Lead__c = null;
+        //update listEP;
+        //AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app, false, false);
+        Test.stoptest();
+    }
+    
+    //shivam
+    static testMethod void appointmentToEventSingleShvvTest(){
+        User us = createUser();
+        insert us;
+        //lead ld = new lead(lastname = 'lastName11',Company='Test1 Company',email = 'test11@test.com');
+        //insert ld;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Event_Fields__c = '';
+        cslSync.Appointment_Fields__c = '';
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app = TestCreateObject.getEvent();
+        app.Voice_Reminder__c = '1 Day Prior';
+        app.IsAllDayEvent__c=true;
+        app.RecurrenceStartDate__c=Date.today();
+        app.RecurrenceType__c = 'RecursDaily';
+        insert app;
+        app.Event_Id__c=app.id;
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursEveryWeekday';
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+     
+        listEP[0].Lead__c = null;
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        /*List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app, false, false);
+        */
+        Test.stoptest();
+    }
+    
+    static testMethod void appointmentToEventSingleTest1(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        Test.stoptest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursEveryWeekday';
+        app1.Event_Id__c=listEvent[0].id;
+        insert app1;
+        
+        CheckEventCreation.salesforceToSumoSync = true;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        CheckEventCreation.salesforceToSumoSync = false;
+        update listEP;
+        CheckEventCreation.salesforceToSumoSync = true;
+        //AppointmentSynchronization.appointmentToEventSync(listEP);
+        
+        CheckEventCreation.isTriggerBreak = false;
+        //AppointmentSynchronization.appointmentToEventSyncRecurring(app1, true, true);
+        
+    }
+    static testMethod void appointmentToEventSingleTest2(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursWeekly';
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest3(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursMonthly';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursMonthly';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceDayOfMonth=2;
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest4(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursMonthlyNth';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursMonthlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='First';
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest5(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursMonthlyNth';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.RecurrenceInstance__c='2nd';
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursMonthlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Second';
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest6(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursMonthlyNth';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.RecurrenceInstance__c='3rd';
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursMonthlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Third';
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest7(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursMonthlyNth';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.RecurrenceInstance__c='4th';
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursMonthlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Fourth';
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest8(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursMonthlyNth';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.RecurrenceInstance__c='last';
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursMonthlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest9(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearly';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearly';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceDayOfMonth=2;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest10(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, 'Phone','forcebrain__Participant__c');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        app1.Service_Text__c = 'Other';
+        app1.Location_Text__c = 'Other';
+        app1.User_web_conference_details__c = 'User web conference details';
+        app1.Description__c = 'Description';
+        app1.IsAllDayEvent__c = true;
+        app1.Showtime__c = 'Out of Office';
+        insert app1;
+        
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id, provider.id);
+        
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        AppointmentSynchronization.appointmentToEventSyncOnlyThis(listEP);
+        
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='First';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, true);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest11(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='2nd';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Second';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest12(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='3rd';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Third';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest13(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='4th';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Fourth';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest14(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='last';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest15(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='last';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        app1.Status__c='Canceled';
+        app1.Event_Id__c=listEvent[0].id;
+        insert app1;
+        app1.RecurrenceEvent__c=app1.id;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest16(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='last';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        app1.Status__c='Canceled';
+        app1.IsAllDayEvent__c=true;
+        app1.Event_Id__c=listEvent[0].id;
+        insert app1;
+        app1.RecurrenceEvent__c=app1.id;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    static testMethod void appointmentToEventSingleTest17(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        createCalSetting(us.id, '','');
+        
+        // Test Single Appointment Calendar Sync
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now().addHours(2);
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        
+        Event__c app1 = TestCreateObject.getEvent();
+        app1.Voice_Reminder__c = '1 Day Prior';
+        app1.RecurrenceStartDate__c=Date.today();
+        app1.RecurrenceType__c = 'RecursYearlyNth';
+        app1.RecurrenceInstance__c='last';
+        app1.RecurrenceDayOfMonth__c=2;
+        app1.onDay__c=true;
+        app1.onSunday__c=true;
+        app1.onMonday__c=true;
+        app1.onTuesday__c=true;
+        app1.onWednesday__c=true;
+        app1.onThursday__c=true;
+        app1.onFriday__c=true;
+        app1.onSaturday__c=true;
+        app1.Status__c='Canceled';
+        app1.IsAllDayEvent__c=true;
+        app1.Event_Id__c=listEvent[0].id;
+        insert app1;
+        app1.RecurrenceEvent__c=app1.id;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        AppointmentSynchronization.appointmentToEventSync(listEP);
+        AppointmentSynchronization.appointmentToEventSyncRecurring(app1, false, false);
+        Test.stoptest();
+    }
+    /*static testMethod void eventToAppointmentAllDayTest(){
+        User us = createUser();
+        insert us;
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        provider.User__c = us.Id;
+        insert provider;
+        
+        dummyContact();
+        createCalSetting(us.id);
+        //createCalSetting(us.id, 'description','description__c');
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].IsAllDayEvent = true;
+        listEvent[0].location = 'other';
+        listEvent[0].subject = 'other';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        CheckEventCreation.isTriggerBreak = false;
+        List<EventRelation> listER = getEventRelation(listEvent[0].id);
+        insert listER;
+        System.debug('test all event Relations... '+listER);
+        update listEvent;
+        
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        AppointmentSynchronization.eventToAppointmentSync(listEvent, listEvent[0].OwnerId);
+        Test.stoptest();
+    }*/
+    public static void createCalSetting(id uId){
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        cslSync.Sync_Status__c='In Progress';
+        insert cslSync;
+        
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c = uId;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+    }
+    /*static testMethod void updateChildAppInfoTest(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        provider.User__c = us.Id;
+        insert provider;
+        account acc=new account(name='abc');
+        insert acc;
+        createCalSetting(us.id);
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].subject='test';
+        listEvent[0].location='Other';
+        listEvent[0].isAllDayEvent = false;
+        listEvent[0].Whatid=acc.id;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        CheckEventCreation.isTriggerBreak = false;
+        List<EventRelation> listER = getEventRelation(listEvent[0].id);
+        
+        insert listER;
+        update listEvent;
+        List<Event> listChildEvent = [SELECT id, WhatId,Description,Subject,Notify_Provider__c,Phone_Reminder__c,Email_Reminder__c,Text_Reminder__c,Second_Text_Reminder__c,OwnerId,AppointmentId__c,Location,ShowAs,IsReminderSet,IsAllDayEvent,StartDateTime,EndDateTime,ReminderDateTime FROM Event WHERE RecurrenceActivityId =:  listEvent[0].id AND IsRecurrence =: false];
+        //update listChildEvent[0];
+        
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        insert servi;
+        AppointmentSynchronization.updateChildAppInfo(listChildEvent[0]); 
+        Test.stoptest();
+    }
+    static testMethod void updateChildAppInfoTest1(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c =us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].isAllDayEvent = true;
+        listEvent[0].RecurrenceType = 'RecursDaily';
+        listEvent[0].RecurrenceStartDateTime = date.today();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        CheckEventCreation.isTriggerBreak = false;
+        List<EventRelation> listER = getEventRelation(listEvent[0].id);
+        
+        insert listER;
+        update listEvent;
+        List<Event> listChildEvent = [SELECT id, WhatId,Description,Subject,Notify_Provider__c,Phone_Reminder__c,Email_Reminder__c,Text_Reminder__c,Second_Text_Reminder__c,OwnerId,AppointmentId__c,Location,ShowAs,IsReminderSet,IsAllDayEvent,StartDateTime,EndDateTime,ReminderDateTime FROM Event WHERE RecurrenceActivityId =:  listEvent[0].id AND IsRecurrence =: false];
+        //update listChildEvent[0];
+        
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        insert servi;
+        AppointmentSynchronization.updateChildAppInfo(listChildEvent[0]); 
+        Test.stoptest();
+    }*/
+    static testMethod void updateChildEventTest(){
+        User us = createUser();
+        insert us;
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].isRecurrence = true;
+        listEvent[0].RecurrenceType = 'RecursYearlyNth';
+        listEvent[0].RecurrenceStartDateTime = DateTime.now();
+        listEvent[0].RecurrenceEndDateOnly = Date.Today().addDays(3);
+        listEvent[0].RecurrenceInterval = 1;
+        listEvent[0].RecurrenceDayOfWeekMask=2;
+        listEvent[0].RecurrenceInstance='Last';
+        listEvent[0].RecurrenceInterval=NULL;
+        listEvent[0].RecurrenceMonthOfYear='May';
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        AppointmentSynchronization.updateChildEvent(listEvent[0]);
+    }
+    static testMethod void createEventRelationTest(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        insert provider;
+        Event app = new event();
+        app.DurationInMinutes=2;
+        app.ActivityDateTime=datetime.now();
+        CheckEventCreation.isTriggerBreak = true;
+        insert app;
+        Event__c app1 = TestCreateObject.getEvent();
+        insert app1;
+        List<EventParticipant__c> listEP = createAppointmentParticipants(app1.id,provider.id);
+        listEP[0].ParticipantStatus__c = 'Awaiting';
+        update listEP;
+        set<id>ids=new set<id>();
+        ids.add(app.id);
+        map<id,id> mpids=new map<id,id>();
+        mpids.put(provider.id,us.id);
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        insert servi;
+        AppointmentSynchronization.createEventRelation(ids,listEP,mpids,us.id);
+    }
+    static testMethod void eventToAppointmentSingleTest(){
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        //createCalSetting(us.id);
+        createCalSetting(us.id, '','');
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].IsAllDayEvent=true;
+        //listEvent[0].ActivityDate=date.today();
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        CheckEventCreation.isTriggerBreak = false;
+        List<EventRelation> listER = getEventRelation(listEvent[0].id);
+        insert listER;
+        System.debug('test all event Relations... '+listER);
+        update listEvent;
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        insert servi;
+        AppointmentSynchronization.eventToAppointmentSync(listEvent, listEvent[0].OwnerId);
+        Test.stoptest();
+    }
+    static testMethod void eventToAppointmentSingleTest1(){
+        Account acc = new Account();
+        acc.name = 'TestAcc1234';
+        insert acc;
+        User us = createUser();
+        insert us;
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        provider.User__c = us.Id;
+        insert provider;
+        dummyContact();
+        //createCalSetting(us.id);
+        createCalSetting(us.id, '','');
+        Test.starttest();
+        List<Event> listEvent = getEvent(us.id);
+        listEvent[0].whatid=acc.id;
+        listEvent[0].IsAllDayEvent=false;
+        listEvent[0].ActivityDate=date.today();
+        CheckEventCreation.isTriggerBreak = true;
+        insert listEvent;
+        CheckEventCreation.isTriggerBreak = false;
+        List<EventRelation> listER = getEventRelation(listEvent[0].id);
+        insert listER;
+        System.debug('test all event Relations... '+listER);
+        update listEvent;
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        insert servi;
+        AppointmentSynchronization.eventToAppointmentSync(listEvent, listEvent[0].OwnerId);
+        AppointmentSynchronization.getCalendarSyncRecord();
+        AppointmentSynchronization.updateChildAppInfo(listEvent[0]);
+        Test.stoptest();
+    }
+    static testMethod void syncEventParticipantRecurrenceTest(){
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c =us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        Account acc = new Account();
+        acc.name = 'TestAcc1';
+        insert acc;
+        
+        Contact con = TestCreateObject.getContact();
+        con.FirstName = 'Dummy';
+        con.LastName = 'Contact';
+        con.AccountId = acc.id;
+        insert con;
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        provider.isProvider__c=true;
+        insert provider;
+        
+        lead ld = new lead(lastname = 'lastName',Company='Test Company',email = 'test@test.com');
+        insert ld;
+        
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        
+        app.RecurrenceEvent__c=app.id;
+        
+        EventParticipant__c ep = new EventParticipant__c();
+        ep.Customer__c = provider.id;
+        ep.Event__c = app.Id;
+        ep.ParticipantStatus__c = 'Confirmed'; 
+        insert ep;
+        
+        EventParticipant__c epLead = new EventParticipant__c();
+        epLead.Customer__c = con.id;
+        epLead.Event__c = app.Id;
+        epLead.lead__c = ld.id;
+        epLead.ParticipantStatus__c = 'Confirmed'; 
+        checkEventCreation.istriggerBreak = true;
+        test.startTest();
+        insert epLead;
+        test.stopTest();
+        checkEventCreation.istriggerBreak = false;
+        
+        list<event> evtList=getEvent(us.id);
+        evtList[0].ownerid=us.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].AppointmentId__c=app.id;
+        evtList[0].RecurrenceStartDateTime=datetime.now();
+        insert evtList;
+        
+        List<eventrelation> ers = new list<eventrelation>();
+           for(contact cur : [select id from contact where lastname !='Contact']){
+               ers.add(new eventrelation(eventid=evtList[0].Id,relationid=cur.id,status='Declined'));  
+           }
+        insert ers;
+        
+        list<Event> eventLst = [SELECT id, AppointmentId__c, RecurrenceActivityId, OwnerId FROM Event WHERE RecurrenceActivityId =: evtList[0].Id];
+        eventLst[0].AppointmentId__c=app.id; 
+        
+        AppointmentSynchronization.syncEventParticipantRecurrence(eventLst[0],true);
+        AppointmentSynchronization.updateEventParticipant(evtList[0],app);
+        AppointmentSynchronization.deleteConflictBehavior(cslSync.id);
+        AppointmentSynchronization.getCalendarSyncRecordWithParticipant(app);
+        
+        map<id,EventParticipant__c> epMap=new map<id,EventParticipant__c>();
+        
+        set<id> epIds=new set<id>();
+        epIds.add(ep.id);
+        epMap.put(ep.id,ep);
+        
+        AppointmentSynchronization.ePartToEvRelatioUpdate(epIds,epMap);
+    }
+    
+    static testMethod void delCanceledEventTest(){
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        User us = createUser();
+        insert us;
+        Calendar_Sync__c cslSync = new Calendar_Sync__c();
+        cslSync.Active__c = true;
+        cslSync.Sync_Status__c = 'Not Started';
+        cslSync.Sync_Direction__c = 'Both Ways';
+        cslSync.Conflict_Behaviour__c = 'SUMO always wins';
+        cslSync.Start_Date__c = Date.today();
+        cslSync.End_Date__c = Date.today();
+        cslSync.Sync_Recurring_Events_Appoinments__c = true;
+        insert cslSync;
+        
+        Calendar_Sync_User__c c = new Calendar_Sync_User__c();
+        c.UserConfigurationAssociation__c =us.id;
+        c.Calendar_Sync__c = cslSync.id;
+        insert c;
+        
+        Account acc = new Account();
+        acc.name = 'TestAcc1';
+        insert acc;
+        
+        Contact con = TestCreateObject.getContact();
+        con.FirstName = 'Dummy';
+        con.LastName = 'Contact';
+        con.AccountId = acc.id;
+        insert con;
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.User__c = us.Id;
+        provider.isProvider__c=true;
+        insert provider;
+        
+        Event__c app = TestCreateObject.getEvent();
+        insert app;
+        
+        app.RecurrenceEvent__c=app.id;
+        
+        EventParticipant__c ep = new EventParticipant__c();
+        ep.Customer__c = provider.id;
+        ep.Event__c = app.Id;
+        ep.ParticipantStatus__c = 'Confirmed'; 
+        insert ep;
+        
+         
+        list<event> evtList=getEvent(us.id);
+        evtList[0].ownerid=us.id;
+        evtList[0].RecurrenceType='RecursDaily';
+        evtList[0].isRecurrence=true;
+        evtList[0].RecurrenceInterval=1;
+        evtList[0].RecurrenceEndDateOnly=Date.Today().addDays(3);
+        evtList[0].AppointmentId__c=app.id;
+        evtList[0].RecurrenceStartDateTime=datetime.now();
+        insert evtList;
+        
+        List<eventrelation> ers = new list<eventrelation>();
+        for(contact cur : [select id from contact where lastname !='Contact']){
+           ers.add(new eventrelation(eventid=evtList[0].Id,relationid=cur.id,status='Declined'));  
+        }
+        
+        cslSync.Active__c = false;  
+        update cslSync;
+        
+        ep.ParticipantStatus__c = 'Canceled'; 
+        update ep;
+        
+        cslSync.Active__c = true; 
+        update cslSync;
+        
+        list<Event> eventLst = [SELECT id, AppointmentId__c, RecurrenceActivityId, OwnerId FROM Event WHERE RecurrenceActivityId =: evtList[0].Id];
+        eventLst[0].AppointmentId__c=app.id; 
+        
+        //AppointmentSynchronization.syncEventParticipantRecurrence(eventLst[0],true);
+        list<EventParticipant__c> epLst = new list<EventParticipant__c>();
+        eplst.add(ep);
+        checkEventCreation.isTriggerBreak = true;
+        AppointmentSynchronization.delCanceledEvent(eplst); 
+    }
+}

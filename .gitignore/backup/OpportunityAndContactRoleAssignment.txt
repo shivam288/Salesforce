@@ -1,0 +1,425 @@
+/* Naresh Assignment --> OpportunityAndContactRoleAssignment
+	Use of RadioButton, Selected value must be pass to controller-- use of inputHidden  */
+
+<apex:page controller="OpptAndConRoleController" tabStyle="Opportunity" sidebar="false">
+    <apex:sectionHeader title="Opportunity Edit" subtitle="New Opportunity"/>
+    <apex:form id="frm">
+        <apex:pageBlock title="Opportunity Edit" mode="edit">
+        <apex:pageBlockButtons ><apex:commandButton value="Add" action="{!add1}"/></apex:pageBlockButtons>
+        <apex:pageBlockSection columns="2" title="Opportunity Information" collapsible="false" >
+            <apex:outputField value="{!oppty.ownerId}"/>
+            <apex:inputField value="{!oppty.Amount}"/>
+            <apex:inputField value="{!oppty.Name}"/>
+            <apex:inputField value="{!oppty.CloseDate}"/>
+            <apex:inputField value="{!oppty.Accountid}"/>
+            <apex:inputField value="{!oppty.StageName}"/>
+            <apex:inputField value="{!oppty.LeadSource}"/>
+            <apex:inputField value="{!oppty.Probability}"/>
+            <apex:inputField value="{!oppty.TotalOpportunityQuantity}"/>
+        </apex:pageBlockSection>
+        
+        <apex:pageBlockSection columns="2" title="Contact Role" id="SCREEN" collapsible="false" >
+            <apex:inputField value="{!ocRole.contactId}"/>
+            <apex:inputfield value="{!ocRole.role}" />
+            <div align="center" draggable="false" ><apex:commandLink value="Add Contact Role" action="{!addRole}" reRender="op" status="sts"/></div>
+        </apex:pageBlockSection>
+            
+        <apex:outputPanel id="op">
+            <apex:pageMessages ></apex:pageMessages>
+            <apex:actionStatus id="sts" startText="Loading Contact Roles. . . ."></apex:actionStatus>
+            <apex:pageBlockSection title="Selected Contact Role"  columns="1" collapsible="false" >
+            <apex:outputPanel rendered="{!screen == '1'}" style="text-align:center" layout="block" > No Contact Role</apex:outputPanel>
+            <apex:outputPanel rendered="{!screen == '2'}" > 
+                 <apex:pageBlockTable value="{!ocRoleList1}" var="Role1">
+                      <apex:column ><apex:facet name="header">Primary</apex:facet>
+                          <input type="radio" name="Letters" value="{!Role1.contactid}" onclick="changeValue(this,'{!$Component.RadioButtonValue}');" />	<!-- type String -->
+                         <!-- 
+                          <apex:selectRadio id="RadioBtn"></apex:selectRadio>
+                                <script>
+                                  var selectOptionTable = document.getElementById('{!$Component.RadioBtn}');
+                                  var cells = selectOptionTable.getElementsByTagName('td');
+                                  for (var i=0,len=cells.length; i<len; i++){
+                                      cells[i].style.border = 'none' ;
+                                  }
+                                </script>
+                            -->
+                          
+                          <!-- Error: common.apex.runtime.impl.ExecutionException: Invalid conversion from runtime type String to OpportunityContactRole
+									-->
+                          
+                      </apex:column>
+            
+                <apex:column >
+                    <apex:facet name="header"> Contact Role </apex:facet>
+                    <apex:outputField value="{!Role1.contactid}"/>
+                </apex:column>
+                <apex:column > 
+                    <apex:facet name="header"> Role </apex:facet>
+                    <apex:outputField value="{!Role1.role}"/> 
+                </apex:column>  
+                </apex:pageBlockTable>  </apex:outputPanel> 
+        </apex:pageBlockSection><apex:inputHidden value="{!selectedValue}" id="RadioButtonValue" />
+            </apex:outputPanel>
+        </apex:pageBlock>  
+        
+        <apex:pageBlock >
+            <apex:pageBlockButtons >
+                <apex:commandButton action="{!Save}" value="Save" immediate="true"/>
+                <apex:commandButton action="{!Cancel}" value="Cancel" immediate="true"/>    <!--you should use immediate key word only need for stopping form validation.-->
+            </apex:pageBlockButtons>
+            <apex:pageBlockTable var="Myop1" value="{!wOppty1List}">
+                <apex:column >
+                    <apex:facet name="header"> Name </apex:facet>
+                    <apex:outputText value="{!Myop1.ops.name}" />
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"> Close Date </apex:facet>
+                    <apex:outputText value=" {!Myop1.ops.closedate}" />
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"> Stage </apex:facet>
+                    <apex:outputText value=" {!Myop1.ops.StageName}" />
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"> Account </apex:facet>
+                    <apex:outputText value=" {!Myop1.ops.closedate}" />
+                </apex:column>
+                <apex:column >
+                    <apex:facet name="header"> Contact Role </apex:facet>
+                    <apex:outputText value=" {!Myop1.s}" />
+                </apex:column>
+            </apex:pageBlockTable>
+        </apex:pageBlock>
+    </apex:form>
+    
+    <script>
+        function changeValue(input, textid) {
+            document.getElementById(textid).value = input.value;
+        }
+    </script>
+</apex:page>
+
+
+-------------------------------------------------------------------------
+// CONTROLLER
+
+public class OpptAndConRoleController {
+    public Opportunity oppty{get; set;}
+    OpportunityContactRole ocRole{get; set;}
+    public list<OpportunityContactRole> ocRoleList1{get; set;}		// 14/8
+    public list<WrapOpp> wOpptyList{get; set;} 
+    public list<WrapOpp1> wOppty1List{get; set;}
+    public String Screen{get; set;}
+    public String str{get; set;}
+    public string selectedValue{get; set;}		 // 14/8/17		//OpportunityContactRole
+    
+    public OpptAndConRoleController(){
+        screen='1';
+        oppty = new Opportunity();
+        oppty.ownerId = UserInfo.getUserId();
+        selectedValue='';
+        wOpptyList = new list<WrapOpp>();
+        ocRoleList1 = new list<OpportunityContactRole>(); 	// 14/8
+        ocRoleList2 = new list<OpportunityContactRole>();
+        wOppty1List = new  list<WrapOpp1>();
+        //casesradio = new list<SelectOption>();
+    }
+    public OpportunityContactRole getOcRole(){
+        if(ocRole==null)
+            ocRole = new OpportunityContactRole();
+        return ocRole;
+    }
+    //Wrapper Class
+    public class WrapOpp{
+        public Opportunity ops{get; set;}
+        public OpportunityContactRole role{get; set;}
+        public WrapOpp(Opportunity oppty, OpportunityContactRole ocRole){
+            ops = oppty;
+            role = ocRole;
+        }
+    }
+    public class WrapOpp1{
+        public Opportunity ops{get; set;}
+        public String s{get; set;}
+        public list<OpportunityContactRole> locr{get; set;}
+        public WrapOpp1(Opportunity o, String s1,list<OpportunityContactRole> locr){
+            ops = o;
+            s = s1;
+            this.locr = locr;
+        }
+    }
+   
+   //---------------------------------------------------------------------
+    public list<contact> name1{get; set;}
+    public list<OpportunityContactRole> ocRoleList2{get; set;} 
+    
+    public void add1(){
+        system.debug('		(1)###  oppty - '+oppty+' @@@ ocRoleList2 - '+ocRoleList2);				//--
+        system.debug('----------->selectedValue: selectedValue '+selectedValue);
+        
+        string str1='';
+        str='';				// not used
+        list<Id> id1 = new list<id>();
+        integer size = wOpptyList.size();
+        integer k=0;
+        list<contact> scon1 = new list<contact>();
+        set<id> scon = new set<id>();
+        
+        screen='1';
+        ocRoleList1 = new list<OpportunityContactRole>();			// 14/8
+        
+        for(integer i=0;i<size;i++){
+            if(k==(size-1)){
+                break;
+            }
+            oppty = wOpptyList[k].ops;
+            for(integer j=0;j<size;j++){
+                if(oppty == wOpptyList[j].ops){
+                    str+=wOpptyList[j].role.contactid +',';		//not needed
+                    scon.add(wOpptyList[j].role.contactid);
+                    k=j;
+                }
+                else{
+                    k=j;
+                }
+            }
+           /* str = str.removeEnd(',');
+            contact cc;
+            str = 'Select name from contact where id in :'+str;
+            list<sobject> obs = Database.query(str);					// problem in type conversion 
+            for(sobject c: obs){
+                cc=(contact)c;
+                str1=str1+cc.name+',';
+            } */
+            scon1 = [select name from contact where id in :scon];
+            for(contact c: scon1){
+                str1=str1+c.name+',';
+            }
+              wOppty1List.add(new WrapOpp1(oppty,str1.removeEnd(','),ocRoleList2));			//
+            for(WrapOpp1 wp : wOppty1List){
+                system.debug('(2)MAIN   WRAPPER	- '+wp.locr+'	'+wp.ops); }						//--
+              str='';															//
+              oppty=new Opportunity();											//
+              wOpptyList = new list<WrapOpp>();									//
+              ocRoleList2 = new list<OpportunityContactRole>();
+              ocRole = new OpportunityContactRole();
+        }
+    }
+
+    public void addRole(){
+        System.debug('#######> IN HERE ');
+        screen='2';
+        wOpptyList.add(new WrapOpp(oppty,ocRole));
+        system.debug('---');
+        ocRoleList1.add(ocRole);
+        //system.debug('===============>>>> ocRoleList1'+ocRoleList1[0]);
+        system.debug('--------> contactId: '+ocRole.ContactId);
+        system.debug('----------->selectedValue: '+selectedValue);
+        //casesradio.add(new SelectOption(ocRole.contactId, ocRole.role));		-->facility in radio button
+        ocRoleList2.add(ocRole);
+        ocRole = new OpportunityContactRole();
+    }
+    
+    //------------------------------------------------------------------$@^#
+    list<opportunity> lop = new list<opportunity>();
+    list<OpportunityContactRole> ocRoleList3 = new list<OpportunityContactRole>();
+    public PageReference save() {  
+     	opportunity op;
+        for(WrapOpp1 wp : wOppty1List){
+            lop.add(wp.ops);
+        }
+        insert lop;
+        ocRoleList1 = new list<OpportunityContactRole>();			// 14/8
+        integer i=0;
+        
+        for(WrapOpp1 wp : wOppty1List){
+            oppty = lop[i++];
+            system.debug('--->oppty '+oppty);
+            for(OpportunityContactRole ocr : wp.locr){
+                ocr.OpportunityId = oppty.id;
+                if(ocr.ContactId+'' == selectedValue){ ocr.IsPrimary=true; }
+                system.debug('--->ocr '+ocr);
+                ocRoleList3.add(ocr);
+            }
+        }
+        insert ocRoleList3;
+     
+     PageReference OpportunityPage = new PageReference('/' + oppty.id);
+     OpportunityPage.setRedirect(true);
+     return OpportunityPage;
+     }
+    
+    public PageReference cancel() {
+        pagereference pcancel = new pagereference('/apex/OpporntyAndContactRoleAssignment');
+        pcancel.setRedirect(true);
+        return pcancel;
+    }
+}
+--------------------------------------------------
++++++++++++++++++++++++++++++++++++++++++++++++++
+best one controller -> 2nd edit
+
+// Naresh Sir Assignment		from->1/8/17   16/8/17 completed
+
+public class OpptAndConRoleController {
+    public Opportunity oppty{get; set;}
+    OpportunityContactRole ocRole{get; set;}
+    public list<OpportunityContactRole> ocRoleList1{get; set;}		// 14/8
+    public list<WrapOpp> wOpptyList{get; set;} 
+    public list<WrapOpp1> wOppty1List{get; set;}
+    public String Screen{get; set;}
+    public String str{get; set;}
+    public string selectedValue{get; set;}		 // 14/8/17		//OpportunityContactRole
+    
+    public OpptAndConRoleController(){
+        screen='1';
+        oppty = new Opportunity();
+        oppty.ownerId = UserInfo.getUserId();
+        selectedValue='';
+        wOpptyList = new list<WrapOpp>();
+        ocRoleList1 = new list<OpportunityContactRole>(); 	// 14/8
+        ocRoleList2 = new list<OpportunityContactRole>();
+        wOppty1List = new  list<WrapOpp1>();
+        //casesradio = new list<SelectOption>();
+    }
+    public OpportunityContactRole getOcRole(){
+        if(ocRole==null)
+            ocRole = new OpportunityContactRole();
+        return ocRole;
+    }
+    //Wrapper Class
+    public class WrapOpp{
+        public Opportunity ops{get; set;}
+        public OpportunityContactRole role{get; set;}
+        public WrapOpp(Opportunity oppty, OpportunityContactRole ocRole){
+            ops = oppty;
+            role = ocRole;
+        }
+    }
+    public class WrapOpp1{
+        public Opportunity ops{get; set;}
+        public String s{get; set;}
+        public list<OpportunityContactRole> locr{get; set;}
+        public WrapOpp1(Opportunity o, String s1,list<OpportunityContactRole> locr){
+            ops = o;
+            s = s1;
+            this.locr = locr;
+        }
+    }
+   
+   //---------------------------------------------------------------------
+    public list<contact> name1{get; set;}
+    public list<OpportunityContactRole> ocRoleList2{get; set;} 
+    
+    public void add1(){
+        system.debug('		(1)###  oppty - '+oppty+' @@@ ocRoleList2 - '+ocRoleList2);				//--
+        system.debug('----------->selectedValue: selectedValue '+selectedValue);
+        
+        string str1='';
+        str='';				// not used
+        list<Id> id1 = new list<id>();
+        integer size = wOpptyList.size();
+        integer k=0;
+        list<contact> scon1 = new list<contact>();
+        set<id> scon = new set<id>();
+        
+        screen='1';
+        ocRoleList1 = new list<OpportunityContactRole>();			// 14/8
+        
+        for(integer i=0;i<size;i++){
+            if(k==(size-1)){
+                break;
+            }
+            oppty = wOpptyList[k].ops;
+            for(integer j=0;j<size;j++){
+                if(oppty == wOpptyList[j].ops){
+                    str+=wOpptyList[j].role.contactid +',';		//not needed
+                    scon.add(wOpptyList[j].role.contactid);
+                    k=j;
+                }
+                else{
+                    k=j;
+                }
+            }
+           /* str = str.removeEnd(',');
+            contact cc;
+            str = 'Select name from contact where id in :'+str;
+            list<sobject> obs = Database.query(str);					// problem in type conversion 
+            for(sobject c: obs){
+                cc=(contact)c;
+                str1=str1+cc.name+',';
+            } */
+            scon1 = [select name from contact where id in :scon];
+            for(contact c: scon1){
+                str1=str1+c.name+',';
+            }
+            //putting the IsPrimary to true in ocRoleList2
+            for(OpportunityContactRole oo : ocRoleList2){
+                    if(oo.contactId+''== selectedValue){
+                        oo.IsPrimary=true;
+                    }
+                }
+
+              wOppty1List.add(new WrapOpp1(oppty,str1.removeEnd(','),ocRoleList2));			//
+            for(WrapOpp1 wp : wOppty1List){
+                system.debug('(2)MAIN   WRAPPER	- '+wp.locr+'	'+wp.ops); }						//--
+              str='';															//
+              oppty=new Opportunity();											//
+              wOpptyList = new list<WrapOpp>();									//
+              ocRoleList2 = new list<OpportunityContactRole>();
+              ocRole = new OpportunityContactRole();
+              selectedValue='';
+        }
+    }
+
+    public void addRole(){
+        System.debug('#######> IN HERE ');
+        screen='2';
+        wOpptyList.add(new WrapOpp(oppty,ocRole));
+        system.debug('---');
+        ocRoleList1.add(ocRole);
+        //system.debug('===============>>>> ocRoleList1'+ocRoleList1[0]);
+        system.debug('--------> contactId: '+ocRole.ContactId);
+        system.debug('----------->selectedValue: '+selectedValue);
+        //casesradio.add(new SelectOption(ocRole.contactId, ocRole.role));		-->facility in radio button
+        ocRoleList2.add(ocRole);
+        ocRole = new OpportunityContactRole();
+    }
+    
+    //------------------------------------------------------------------$@^#
+    list<opportunity> lop = new list<opportunity>();
+    list<OpportunityContactRole> ocRoleList3 = new list<OpportunityContactRole>();
+    public PageReference save() {  
+     	opportunity op;
+        for(WrapOpp1 wp : wOppty1List){
+            lop.add(wp.ops);
+        }
+        insert lop;						//Exception:(if probability>100) FIELD_INTEGRITY_EXCEPTION, Probability must be between 0 and 100
+       
+        ocRoleList1 = new list<OpportunityContactRole>();			// 14/8
+        integer i=0;
+        
+        for(WrapOpp1 wp : wOppty1List){
+            oppty = lop[i++];
+            system.debug('--->oppty '+oppty);
+            for(OpportunityContactRole ocr : wp.locr){
+                ocr.OpportunityId = oppty.id;
+                
+                system.debug('--->ocr '+ocr);
+                ocRoleList3.add(ocr);
+            }
+        }
+        insert ocRoleList3;
+        
+     
+     PageReference OpportunityPage = new PageReference('/' + oppty.id);
+     OpportunityPage.setRedirect(true);
+     return OpportunityPage;
+     }
+    
+    public PageReference cancel() {
+        pagereference pcancel = new pagereference('/apex/OpporntyAndContactRoleAssignment');
+        pcancel.setRedirect(true);
+        return pcancel;
+    }
+}

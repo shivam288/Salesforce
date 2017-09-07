@@ -1,0 +1,34 @@
+TaskTest.apex
+
+@isTest 
+public class TaskTest {
+    public static testmethod void contactTest(){
+        Account a1= new Account(name='a1234');
+        insert a1;
+        contact con = new Contact(lastname='Task1', accountId=a1.id);
+        insert con;
+        Appointment_Invite__c apii = new Appointment_Invite__c(isSent__c=false,Contact__c=con.id);
+        insert apii;
+        task t1 = new task(subject='Email:123',WhoId=con.id);
+        
+        system.Test.startTest();
+        insert t1;
+        system.Test.stopTest();
+        Appointment_Invite__c aa = [select isSent__c from Appointment_Invite__c where id =:apii.id];
+        system.assertNotEquals(false, aa.isSent__c);
+    }
+   
+    public static testmethod void LeadTest(){
+        Lead l1 = new Lead(lastname='Task11',Company='ForceBrain');
+        insert l1;
+        Appointment_Invite__c apii1 = new Appointment_Invite__c(Lead__c=l1.id,isSent__c=false);
+        insert apii1;
+        task t11 = new task(subject='Email:1234',WhoId=l1.id);
+        
+        system.Test.startTest();
+        insert t11;
+        system.Test.stopTest();
+        
+        system.assertNotEquals(false, [select isSent__c from Appointment_Invite__c where id =:apii1.id].isSent__c);
+    }
+}

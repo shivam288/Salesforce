@@ -1,0 +1,73 @@
+/**
+ * SIGNET
+ * @author          Lavanya Aningi
+ * @version         1.0
+ * @date            02/22/2017
+ * @description     Trigger to insert or update the 'Active Store' flag on Reporting Metrics object when a Store record is created or edited.
+  */
+trigger StoreTrigger on Stores__c (after Insert,after Update) {
+  
+  StoreTriggerHandler sth = new StoreTriggerHandler();
+  List<Stores__c> stlist = new List<Stores__c>();
+  for(Stores__c st: Trigger.New){
+    if(st.Global_Store_Id__c != null  || st.Global_Store_Id__c != '' ){
+        stlist.add(st);
+     }
+    sth.StoreActiveReportingMetrics(stlist);
+  }
+    
+  /*
+   *  Shivam Gupta
+   *  Date: 28/08/2017
+   *  Description: Trigger to create 4 Objects - Location, Providers, WorkShift and Service Offered while inserting any Store record. 
+   */
+    
+    if(trigger.isAfter  && trigger.isInsert){
+        list<Stores__c> stlist1 = new list<Stores__c>();
+        map<id, forcebrain__Location__c> storeLocationMap = new map<id, forcebrain__Location__c>();
+        map<id, list<contact>> storeProviderMap = new  map<id, list<contact>>();
+        list<contact> cons = new list<contact>();
+        list<forcebrain__ProviderWorkShift__c> workshifts = new list<forcebrain__ProviderWorkShift__c>();
+        list<forcebrain__ServiceProviderAssociation__c> serviceProviderAssociationList = new list<forcebrain__ServiceProviderAssociation__c>();
+        map<id,Sumo_Configuration__c> storeSumoConfigMap = new map<id,Sumo_Configuration__c>();
+        list<Sumo_Configuration__c> sumoConfig = [select id, Ecom_Logo__c from Sumo_Configuration__c];
+        
+        // create another store list after cheaking StoreActive and ApptSchedulerActive field are set to true 
+        for(Stores__c s : stlist){
+            if(s.Is_Store_Active__c == true  &&  s.Appointment_Scheduler_Active__c != 'false'){
+                stlist1.add(s);
+            }
+        }
+        
+        storeSumoConfigMap = StoreTriggerHandler.createSumoConfiguration(stlist1, sumoConfig);
+        
+        storeLocationMap = StoreTriggerHandler.createLocation(stlist1);
+        insert storeLocationMap.values();
+        
+        storeProviderMap = StoreTriggerHandler.createProviders(stlist1 , storeSumoConfigMap);
+        for(id sid : storeProviderMap.keyset()){
+            cons.addAll(storeProviderMap.get(sid));
+        }
+        insert cons;
+            
+        workshifts = StoreTriggerHandler.createWorkShift(storeProviderMap, storeLocationMap , storeSumoConfigMap);
+        insert workshifts;
+        
+        serviceProviderAssociationList = StoreTriggerHandler.createServiceOffered(storeProviderMap , storeSumoConfigMap);
+        insert serviceProviderAssociationList;
+    }
+    
+    /*******
+    @Forcebrain
+    @Author : Kuhinoor Alam
+    Date    : 29-08-017
+    *******/
+    if(trigger.isAfter && trigger.isUpdate){
+        for(Stores__c st: stlist){
+            if(st.Is_Store_Active__c = true && st.Appointment_Scheduler_Active__c == 'Active' ){
+                stlist.add(st);
+            }
+            StoreTriggerHandler.storeUpdate(stlist);
+        }        
+    }
+}

@@ -1,0 +1,116 @@
+<!-- NareshSir Assignment no: 5      Date: 19/8/17-->
+
+<apex:page controller="Asgnmt5_SendEmailAndPdf" tabStyle="Account" sidebar="false" title="Asgnmt5_SendEmailAndPdf">
+    <apex:sectionHeader title="Account Search" subtitle="Search"/>
+    <apex:form >
+        <apex:pageBlock >
+            <apex:pageMessages ></apex:pageMessages>
+            
+            <apex:pageBlockSection title="Search Accounts" >
+                <apex:inputText value="{!val}" />
+                <apex:commandButton value="Search" action="{!SearchAcc}" reRender="block1" />
+            </apex:pageBlockSection>
+            
+            <apex:pageBlockSection title="Account Details">
+                <apex:pageBlockTable id="block1" value="{!details}" var="d" rendered="{!NOT(ISNULL(details))}">
+                    <apex:column headerValue="header" >
+                        <apex:actionSupport event="onclick" action="{!onChangeAccount}" reRender="block2" status="waitMsg">
+                            <input type="radio" name="radio1" value="{!d.id}" onclick="funRadio(this,'{!$Component.RadioButtonValue}');"  /></apex:actionSupport></apex:column>
+                    <!--EXCEPTION : Component <apex:input> in '/apex/Assignment5_SendEmailAndPdf' requires HTML docType version 5.0 or higher 
+									in Assignment5_SendEmailAndPdf  -->
+                    <apex:column value="{!d.name}"  />
+                    <apex:column value="{!d.phone}" />
+                </apex:pageBlockTable></apex:pageBlockSection><apex:inputHidden value="{!selectValue}" id="RadioButtonValue" />
+                
+            <apex:pageBlockSection title="Related Contacts">
+                <apex:commandButton value="send email" action="{!sendEmail}" />
+                <apex:commandButton value="Print Detail" action="{!printDetail}" />
+                
+                <apex:outputPanel rendered="{!!screen}">
+                <apex:pageBlockTable id="block2" value="{!Wrap}" var="cd" rendered="{!NOT(ISNULL(conDetails))}">
+                    <apex:column headerValue="Select"><apex:inputCheckbox value="{!cd.isSelected}" id="inputId"  /></apex:column>
+                    <apex:repeat value="{!cd.contacts}" var="act">
+  						<apex:column value="{!act.firstname}" />    
+                        <!--ERROR: Unknown property 'VisualforceArrayList.firstname' ||| SOLUTION: USE <apex:repeat> -->
+                    	<apex:column value="{!act.lastname}" />
+                    	<apex:column value="{!act.phone}" />
+                    	<apex:column value="{!act.email}" />  
+  					</apex:repeat>
+                    </apex:pageBlockTable></apex:outputPanel>
+            </apex:pageBlockSection>
+        </apex:pageBlock>
+    </apex:form>
+    <script type="text/javascript">
+    function funRadio(input,pageId){
+        //var inputCheckBox = document.getElementsByTagName("input");   
+        document.getElementById(pageId) = input.value;
+    }
+    </script>
+</apex:page>
+
+
+
+------------------------------------------------------------------------------------------------------------
+
+CONTROLLER
+
+public class Asgnmt5_SendEmailAndPdf {
+	public String val { get; set; }
+    public list<account> details{get; set;}
+    public list<contact> conDetails{get; set;}
+    public boolean screen{get; set;}
+    public string selectValue{get; set;}
+    
+    public Asgnmt5_SendEmailAndPdf(){
+        details = new list<account>();
+        screen=false;
+    }
+    
+    public list<Wrapper> wrap{get; set;} 
+    public class Wrapper{
+    	public list<contact> contacts{get; set;}
+        public boolean isSelected{get; set;}
+        public Wrapper(list<contact> con){
+            contacts = new list<contact>();
+            for(contact c: con){
+                contacts.add(c);
+            }
+            isSelected = false;
+        }
+    }
+    
+    
+//----------------------------------------------------
+    public PageReference SearchAcc() {
+    	wrap = new list<Wrapper>();
+        conDetails = new list<contact>();
+        details = new list<account>();
+        for(account acc : [select id,name,phone from account where Name LIKE: '%'+ val +'%']){
+            details.add(acc);
+        } 
+        Integer i = details.size();
+        conDetails = [select firstname,lastname,phone,email from contact where accountId =:details[i-1].id];
+        wrap.add(new Wrapper(conDetails));
+        return null;
+    }
+	
+    
+	//On click of radio button change 
+	public PageReference onChangeAccount(){  
+    	return null;
+}
+    
+    public PageReference sendEmail(){
+        pageReference pg = new pageReference('/' + details[0].id);
+        pg.setRedirect(false);
+        return pg;
+    }
+    
+    public PageReference printDetail(){
+        pageReference pg = new pageReference('/' + details[0].id);
+        pg.setRedirect(false);
+        return pg;
+    }
+    
+}
+

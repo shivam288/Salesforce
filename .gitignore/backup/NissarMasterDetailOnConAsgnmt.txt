@@ -1,0 +1,69 @@
+// 16/8/17
+
+trigger NissarMasterDetailOnConAsgnmt on Contact (after insert,after update,after delete) {
+    
+    if(trigger.isafter || trigger.isInsert || trigger.isUpdate){
+        //collecting AccountId
+        set<id> sid = new set<id>();
+        for(contact c:trigger.new){
+            boolean isValidInsertCase = trigger.isInsert && c.AccountId!=null;
+            boolean isValidUpdateCase = trigger.isUpdate && c.AccountId!= null && (trigger.oldmap.get(c.Id).AccountId!= c.AccountId || trigger.oldmap.get(c.id).Amount_X__c!= c.Amount_X__c  || trigger.oldmap.get(c.id).Amount_Y__c!= c.Amount_Y__c);
+            if(isValidInsertCase || isValidUpdateCase){
+                sid.add(c.AccountId);}
+        }
+        // fetch all Accounts of Set
+        map<id,Account> mAcc = new map<id,account>([select id,Rollup_X__c,Rollup_Y__C from account where id in :sid]);
+        
+        //UPDATE the feilds of PARENT(Account) after Insert
+        if(trigger.isInsert){
+        for(contact cc : trigger.new){
+            if(mAcc.containsKey(cc.accountId) && (cc.Amount_X__c!=null || cc.Amount_Y__c!=null)){
+                mAcc.get(cc.accountId).Rollup_X__c = mAcc.get(cc.accountId).Rollup_X__c + cc.Amount_X__c;
+                mAcc.get(cc.accountId).Rollup_Y__c = mAcc.get(cc.accountId).Rollup_Y__c + cc.Amount_Y__c;  
+            }
+        }
+		Database.update(mAcc.values());
+		//update mAcc.values();
+        }
+        
+        // UPDATE Event
+        if(trigger.isUpdate){
+            for(contact c : trigger.new){
+                if(mAcc.containsKey(c.accountId) && trigger.oldmap.get(c.id).Amount_X__c < c.Amount_X__c && trigger.oldmap.get(c.Id).AccountId != c.AccountId){
+                    mAcc.get(c.accountId).Rollup_X__c = mAcc.get(c.accountId).Rollup_X__c + c.Amount_X__c;
+                }
+                else if(mAcc.containsKey(c.accountId)){
+                    mAcc.get(c.accountId).Rollup_X__c = mAcc.get(c.accountId).Rollup_X__c - c.Amount_X__c;
+                }
+                if(mAcc.containsKey(c.accountId) && trigger.oldmap.get(c.id).Amount_Y__c < c.Amount_Y__c && trigger.oldmap.get(c.Id).AccountId != c.AccountId){
+                    mAcc.get(c.accountId).Rollup_Y__c = mAcc.get(c.accountId).Rollup_Y__c + c.Amount_Y__c;
+                }
+                else if(mAcc.containsKey(c.accountId)){
+                    mAcc.get(c.accountId).Rollup_Y__c = mAcc.get(c.accountId).Rollup_Y__c - c.Amount_Y__c;
+                }
+                if(trigger.oldmap.get(c.Id).AccountId != c.AccountId){
+                    mAcc.get(trigger.oldmap.get(c.Id).AccountId).Rollup_X__c = mAcc.get(trigger.oldmap.get(c.Id).AccountId).Rollup_X__c - c.Amount_X__c;
+                    mAcc.get(trigger.oldmap.get(c.Id).AccountId).Rollup_Y__c = mAcc.get(trigger.oldmap.get(c.Id).AccountId).Rollup_Y__c - c.Amount_Y__c;  
+                }
+            }
+			Database.update(mAcc.values());
+        }
+    }
+        
+        // DELETE Event
+        if(trigger.isDelete){
+            set<id> sid = new set<id>();
+            for(contact c : trigger.old){
+                sid.add(c.AccountId);
+            }
+        
+    		// fetch all Accounts of Set
+       		map<id,Account> mAcc = new map<id,account>([select id,Rollup_X__c,Rollup_Y__C from account where id in :sid]);   
+           
+    		for(contact c : trigger.old){
+           		mAcc.get(c.accountId).Rollup_X__c = mAcc.get(c.accountId).Rollup_X__c - c.Amount_X__c;
+           		mAcc.get(c.accountId).Rollup_Y__c = mAcc.get(c.accountId).Rollup_Y__c - c.Amount_Y__c;
+        	}
+			Database.update(mAcc.values());
+        }
+}

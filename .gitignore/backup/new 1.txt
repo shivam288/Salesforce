@@ -1,0 +1,31 @@
+
+createAppointmentParticipants	244
+
+prob 62 AS
+ 102 , 124 , 138 , 211    if(app.Assigned_To__c != null){
+                          (Event)  newEvent.OwnerId = app.Assigned_To__r.User__c;	 app(Event__c)
+ 
+ ownerIdsCheck  userId
+
+eventUpdate( 
+eventId,  dayDelta,  minuteDelta,  isResize,  newPartId,  oldPartId,  uCase,  recurrenceMode,  sendNotification) 
+
+(event.Id, 1, 20, true, provider.Id, childEventid, 0, 3,false)
+ 
+ timezone - 'America/New_York'
+
+ ----------------------------------------
+ 1283 / 1687
+unitTestShvv1		597
+unitTestShvv   411             54%
+
+Id, Name,Private__c,OwnerId, Location_sumo__r.Name, status__c, description__c, Service_Text__c,Is_Conference_Call__c,
+ AppointmentImage__c, RecurrenceEvent__c, IsAllDayEvent__c, StartDateTime__c, EndDateTime__c, Household__c,
+ Household__r.Name, Room_sumo__c, Room_sumo__r.Name, Color__c, FontColor__c, ActivityDate__c, 
+ (Select First_Name__c,Customer__r.IsProvider__c,Event__c,Customer__r.Name,Customer__r.IsPersonalAccount__c, 
+ Name__c, Lead__c, Lead__r.Name From EventParticipants__r ) FROM 
+ Event__c     WHERE Room_sumo__c IN: binMembersIds AND StartDateTime__c <= :endDate AND EndDateTime__c >= :startDate 
+ AND IsRecurrence__c = false];
+                mapEventToCustomerCount = new map<id,integer>();
+
+line 724

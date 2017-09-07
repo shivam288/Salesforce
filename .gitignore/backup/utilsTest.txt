@@ -1,0 +1,193 @@
+@isTest
+public class UtilsTest {
+	 public static testmethod void unitTest1() {
+        Utils.BaseToDecimal('FF');
+        Integer colorBrightness = Utils.colorBrightness(128,75,200);
+        System.assertEquals(colorBrightness, 105);  
+    }
+    
+    public static testmethod void unitTest2() {
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+    	User usr= TestCreateObject.createUser();
+        usr.CompanyName='forcebrain';
+        insert usr;
+        User usr1= TestCreateObject.createUser();
+        usr1.CompanyName='forcebrain';
+        usr1.email='asd@sdf.cvt';
+        usr1.Username='sdf@admin.dev';
+        usr1.CommunityNickname='fzgfd';
+        insert usr1; 
+        
+        Utils u = new Utils();
+        Utils.runOnce();
+        system.runAs(usr){
+            Utils.hasPrefix(); 
+        }
+       	Utils.getOrgPrefix();
+        Utils.CheckCampaignsEnabled();
+        Utils.FindCampaignsEnabled();
+        String sstr = Datetime.now().format('yyyy-MM-dd HH:mm:ss');
+        u.getDateTimeOffset(system.now(),'America/New_York');
+        
+        u.getDateTimeOffset(Datetime.now(),'America/New_York');
+        u.getTimeZone(system.today(),'America/New_York','sdfsdf');			// 171
+        u.getConvertedDateTime(system.today(),'America/New_York','Africa/Cairo');
+        
+        u.getConvertedDateTime(sstr, 'America/New_York' ,'Africa/Cairo');
+        // String.valueOf(DateTime.dateGmt())   '12/27/2009'
+        
+        account acc = new Account(name='fdj');
+        insert acc;
+        Contact cc = TestCreateObject.getCustomer();
+        cc.AccountId = acc.id; 
+        cc.User__c = usr1.id;
+        insert cc;
+        Event__c ec = TestCreateObject.getEvent();
+        ec.EndDateTime__c  = Datetime.now().addYears(2);
+        ec.Status__c ='Booked';
+        ec.Showtime__c = 'Busy';
+        insert ec;
+        
+        Contact c = TestCreateObject.getProvider();
+        c.User__c = usr.id;
+        insert c;
+        Contact c1 = TestCreateObject.getProvider();
+        c1.User__c = UserInfo.getUserId();//.id;
+        insert c1;
+        c1.LastName='Acmw';
+        update c1;
+        set<id> s = new set<id>();
+        s.add(c.id); 
+        s.add(c1.id);
+        s.add(cc.id);
+        //insert s;
+        set<string> s1= new set<string>();
+        s1.add(String.valueOf(c.id));
+        s1.add(String.valueOf(c1.id));
+        //insert s1;
+        
+        u.checkAvailability(s,datetime.now(),datetime.now()+15,'America/New_York');		//220
+        u.checkAvailabilityWithAppointmentOnly(s,system.today(),Date.today()+15,'America/New_York');
+        
+        
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Customer__c = cc.id;
+        ep.Event__c = ec.id;
+        insert ep;
+        
+        u.getEventParticipants(s);
+        u.getWorkShiftZone(s1);
+        u.getMonth('feb');
+        u.getDateTimeFromString('Mon Jun 19 2017 22:42:13 GMT+0530');		//
+        
+        EventType__c et= TestCreateObject.getEventType();
+        insert et;
+        String sid = String.valueOf(et.id);
+        
+        u.getEndTime(system.today(),sid);
+        u.getWorkshifts(s);
+        u.getWorkshifts(s1);
+        u.checkDST(system.today(),'America/New_York');		// 494 
+    }
+    public static testmethod void unitTest3() {
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        User usr= TestCreateObject.createUser();
+        insert usr;
+        Contact c = TestCreateObject.getProvider();
+        c.User__c=usr.id;
+        insert c;
+        account acc = new Account(name='fdj');
+        insert acc;
+        Contact cc = TestCreateObject.getCustomer();
+        cc.AccountId = acc.id;
+        insert cc;
+        Event__c ec = TestCreateObject.getEvent();
+        insert ec;
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Customer__c = cc.id;
+        ep.Event__c = ec.id;
+        insert ep;
+    	Utils.updateEventParticipant(c.id , ep.id);
+        
+        //Provider__c   Location_sumo__c
+        Location__c loc = new Location__c(name='name121');
+        insert loc;
+        string p = string.valueOf(c.id);
+        string l1 = string.valueOf(loc.id);
+        Utils u = new Utils(); 
+        ProviderWorkShift__c pws = TestUtility.createWorkshifts(p,l1,false);
+        insert pws;
+        u.checkWorkshiftWeekDay(system.today() , pws);						// 537	ProviderWorkShift__c
+        u.updateUserTimeZone('America/New_York');
+        Utils.Lighteningcheck();									// 568
+        
+        Self_Scheduling_Site_Settings__c sss = new Self_Scheduling_Site_Settings__c(Choose_a_Force_com_SIte__c='asdf' , Name__c = 'wer', Upload_your_logo__c='qw1212');
+        insert sss;
+        Scheduling_Setting_Line_Item__c ssl = new Scheduling_Setting_Line_Item__c(Object__c='contact',Field_Name__c = 'account name',Online_Scheduling_Process__c=sss.id);
+        insert ssl;
+        Utils.checkFieldExist(ssl);						// Scheduling_Setting_Line_Item__c
+        ProviderWorkShift__c pws1 = TestUtility.createWorkshifts(p,l1,false);
+        pws1.Monday__c=false;
+        pws1.Tuesday__c=false;
+        insert pws1;
+        u.checkWorkshiftWeekDay(system.today() , pws1);
+        
+        pws1.Monday__c=false;
+        update pws1;
+        u.checkWorkshiftWeekDay(system.today() , pws1);
+        
+        pws1.Monday__c=false;
+        pws1.Tuesday__c=false;
+        pws1.Wednesday__c=false;
+        update pws1;
+        u.checkWorkshiftWeekDay(system.today() , pws1);
+        
+        pws1.Monday__c=false;
+        pws1.Tuesday__c=false;
+        pws1.Wednesday__c=false;
+        pws1.Thursday__c=false;
+        update pws1;
+        u.checkWorkshiftWeekDay(system.today() , pws1);
+        
+        pws1.Monday__c=false;
+        pws1.Tuesday__c=false;
+        pws1.Wednesday__c=false;
+        pws1.Thursday__c=false;
+        pws1.Friday__c=false;
+        update pws1;
+        u.checkWorkshiftWeekDay(system.today() , pws1);
+        
+        pws1.Monday__c=false;
+        pws1.Tuesday__c=false;
+        pws1.Wednesday__c=false;
+        pws1.Thursday__c=false;
+        pws1.Friday__c=false;
+        pws1.Saturday__c=false;
+        update pws1;
+        u.checkWorkshiftWeekDay(system.today() , pws1);
+        
+        Utils.Lighteningcheck();
+    }
+}
+
+/*
+ Map<String,String> mapTimeoffsetZone = new Map<String,String>{'America/Bogota'=>'America/Lima','Pacific/Apia'=>'Asia/Kamchatka','Pacific/Tongatapu'=>'Asia/Kamchatka',
+                                                                        'Pacific/Tarawa'=>'Asia/Kamchatka','Pacific/Fiji'=>'Pacific/Fiji','Pacific/Auckland'=>'Pacific/Fiji',
+                                                                        'Pacific/Noumea'=>'Pacific/Fiji','Australia/Brisbane'=>'Australia/Brisbane','Australia/Sydney'=>'Australia/Brisbane',
+                                                                        'Australia/Darwin'=>'Australia/Darwin','Australia/Adelaide'=>'Australia/Darwin','Asia/Tokyo'=>'Asia/Seoul',
+                                                                         'Asia/Shanghai'=>'Asia/Shanghai','Asia/Jakarta'=>'Asia/Bangkok','Asia/Rangoon'=>'Asia/Rangoon','Asia/Dhaka'=>' Asia/Dhaka',
+                                                                         'Asia/Kathmandu'=>'Asia/Kathmandu','Asia/Kolkata'=>'Asia/Kolkata','Asia/Karachi'=>'Asia/Karachi','Asia/Kabul'=>'Asia/Kabul',
+                                                                         'Asia/Dubai'=>'Asia/Yerevan',' Asia/Baku'=>'Asia/Baku','Asia/Tehran'=>'Asia/Tehran','Asia/Baghdad'=>'Asia/Baghdad',
+                                                                         'Asia/Jerusalem'=>'Asia/Jerusalem','Europe/Helsinki'=>'Europe/Helsinki','Africa/Johannesburg'=>'Europe/Helsinki',
+                                                                         'Asia/Damascus'=>'Africa/Cairo','Asia/Beirut'=>'Asia/Beirut','Africa/Windhoek'=>'Europe/Paris','Africa/Lagos'=>'Europe/Paris',
+                                                                         'Europe/Berlin'=>'Europe/Berlin','UTC'=>'GMT','Europe/London'=>'Europe/London','Atlantic/Cape_Verde'=>'Atlantic/Cape_Verde',
+                                                                         'Atlantic/Azores'=>'Atlantic/Azores','America/Noronha'=>'Atlantic/Azores','America/Argentina/Buenos_Aires'=>'America/Argentina/Buenos_Aires',
+                                                                         'America/Montevideo'=>'America/Argentina/Buenos_Aires','America/Godthab'=>'America/Argentina/Buenos_Aires','America/Sao_Paulo'=>'America/Argentina/Buenos_Aires',
+                                                                         'America/St_Johns'=>'America/Argentina/Buenos_Aires','America/Campo_Grande'=>'America/Santiago','America/Santo_Domingo'=>'America/Halifax',
+                                                                         'America/Halifax'=>'America/Halifax','America/Asuncion'=>'America/Halifax','America/Caracas'=>'America/Caracas','America/New_York'=>'America/New_York',
+                                                                         'America/Guatemala'=>'America/Chicago','America/Mexico_City'=>'America/Chicago','America/Chicago'=>'America/Chicago','America/Denver'=>'America/Denver',
+                                                                         'America/Mazatlan'=>'America/Denver','America/Phoenix'=>'America/Phoenix','America/Los_Angeles'=>'America/Los_Angeles','America/Santa_Isabel'=>'America/Los_Angeles',
+                                                                         'America/Anchorage'=>'America/Anchorage','Pacific/Honolulu'=>'Pacific/Honolulu','Pacific/Pago_Pago'=>'Pacific/Honolulu','Pacific/Majuro'=>'Pacific/Honolulu'};
+*/

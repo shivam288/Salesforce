@@ -1,0 +1,945 @@
+@isTest
+private class CalendarCtrlTest{
+    private static Household__c createHousehold(){        
+        Household__c house = new Household__c();
+        house.Head_of_Household__c = 
+        //house.Address__c = 'Test Address';
+        house.Description__c = 'Test Description'; 
+        return house;
+    }
+    
+    @isTest private static void testSyncFunction() {
+        User testUser = TestCreateObject.buildTestUser(1, 'System Administrator');
+        insert testUser;
+        Account testAcc = TestCreateObject.getAccount();
+        insert testAcc;
+        Contact testCon = TestCreateObject.getContact();
+        testCon.User__c = testUser.Id;
+        testCon.AccountId = testAcc.Id;
+        insert testCon;
+        Event__c testEvent = TestCreateObject.getEvent();
+        insert testEvent;
+        Event testOriginalEvent = new Event();
+        testOriginalEvent.AppointmentId__c = testEvent.Id;
+        testOriginalEvent.OwnerId = testUser.Id;
+        testOriginalEvent.DurationInMinutes = 60;
+        testOriginalEvent.ActivityDateTime = datetime.newinstance(2015,07,24,00, 00, 00);
+        insert testOriginalEvent;
+        Event__c newTestEvent = [SELECT Id, Event_Id__c FROM Event__c WHERE Id =: testEvent.Id LIMIT 1];
+        newTestEvent.Event_Id__c = testOriginalEvent.Id;
+        update newTestEvent;
+        Calendar_Sync__c calSet = TestCreateObject.createCalSetting();
+        calSet.Sync_Direction__c = 'SUMO to Salesforce';
+        calSet.Active__c = true;
+        insert calSet;
+        Contact newTestCon = [SELECT Id, User__c, User__r.ProfileId FROM Contact WHERE Id =: testCon.Id];
+        
+        Calendar_Sync_User__c calSyncUser = TestCreateObject.getCalSyncUser(newTestCon.User__c,calSet.Id);
+        calSyncUser.Profile__c = newTestCon.User__r.ProfileId;
+        insert calSyncUser;
+        CalendarController.CalendarSycActiveStatus(testCon.Id,testEvent.id);
+    }
+    
+    @isTest private static void testSyncFunctionelse() {
+        User testUser = TestCreateObject.buildTestUser(1, 'System Administrator');
+        insert testUser;
+        Account testAcc = TestCreateObject.getAccount();
+        insert testAcc;
+        Contact testCon = TestCreateObject.getContact();
+        testCon.User__c = testUser.Id;
+        testCon.AccountId = testAcc.Id;
+        insert testCon;
+        Event__c testEvent = TestCreateObject.getEvent();
+        insert testEvent;
+        Event testOriginalEvent = new Event();
+        testOriginalEvent.AppointmentId__c = testEvent.Id;
+        testOriginalEvent.OwnerId = testUser.Id;
+        testOriginalEvent.DurationInMinutes = 60;
+        testOriginalEvent.ActivityDateTime = datetime.newinstance(2015,07,24,00, 00, 00);
+        insert testOriginalEvent;
+        Event__c newTestEvent = [SELECT Id, Event_Id__c FROM Event__c WHERE Id =: testEvent.Id LIMIT 1];
+        newTestEvent.Event_Id__c = testOriginalEvent.Id;
+        update newTestEvent;
+        Calendar_Sync__c calSet = TestCreateObject.createCalSetting();
+        //calSet.Sync_Direction__c = 'SUMO to Salesforce';
+        calSet.Active__c = true;
+        insert calSet;
+        Contact newTestCon = [SELECT Id, User__c, User__r.ProfileId FROM Contact WHERE Id =: testCon.Id];
+        
+        Calendar_Sync_User__c calSyncUser = TestCreateObject.getCalSyncUser(newTestCon.User__c,calSet.Id);
+        calSyncUser.Profile__c = newTestCon.User__r.ProfileId;
+        insert calSyncUser;
+        CalendarController.CalendarSycActiveStatus(testCon.Id,testEvent.id);
+    }
+    
+    @isTest private static void time2IntegerTest() {
+        CalendarController.time2Integer('9:00 am');
+        CalendarController.time2Integer('12:00 am');
+        CalendarController.time2Integer('12:00 pm');
+    }
+    
+    @isTest private static void checkDSTDailyAvailTest() {
+        
+    }
+    
+    // Cover event update recer mode 
+    /* eventUpdate(String eventId, 
+    Integer dayDelta, 
+    Integer minuteDelta, 
+    Boolean isResize, 
+    String newPartId, 
+    String oldPartId, 
+    Integer uCase, 
+    Integer recurrenceMode, 
+    Boolean sendNotification) */
+    @isTest public static void startTestEventUpdate(){
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+    
+        provider = [SELECT Id, IsProvider__c FROM Contact WHERE Id =: provider.Id];
+    
+        System.assert(provider.IsProvider__c == true);
+    
+        String binMembers = provider.Id;
+    
+        Event__c eventRec = TestCreateObject.getEvent();                
+        eventRec.Status__c = 'Booked';          
+        insert eventRec;
+        
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked'; 
+        event.IsRecurrence__c = true;
+        event.StartDateTime__c = datetime.newinstance(2015,07,24,05, 00, 00);  
+        event.EndDateTime__c = datetime.newinstance(2015,07,24,05, 00, 01);
+        event.RecurrenceStartDate__c = date.newinstance(2015,07,24);
+        event.RecurrenceEndDate__c = date.newinstance(2015,07,28);
+        event.RecurrenceEvent__c = NULL;
+        event.RecurrenceInterval__c = 1;
+        event.RecurrenceType__c = 'RecursDaily';
+        insert event;
+            
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        list<Event__c> childE = [Select id from Event__c where RecurrenceEvent__c =:event.id];
+        system.debug('===== child' + childE );
+        
+        Location__c location = TestCreateObject.getLocation();
+        insert location;
+        
+        CalendarSettings__c calendarSettings;
+        System.runAs(usr){
+            calendarSettings = new  CalendarSettings__c();
+            calendarSettings.Calendar_Mode__c = 'Default Mode';
+            calendarSettings.Default_Page_Size__c = 4;
+            calendarSettings.Selected_page_No__c = 1;
+            calendarSettings.EventDefaultDuration__c = 2;
+            calendarSettings.MSCal_UserView__c = 'Week';
+            insert calendarSettings;
+        }
+        CalendarController.eventUpdate(String.valueOf(event.id),1,1,false, String.valueOf(provider.Id),String.valueOf(event.Id),0,1,false);             
+        eventRec.Recurrence_Excluded_Dates__c = 'sdfsfsdfs';      
+        update eventRec;
+        
+        CalendarController.eventUpdate(String.valueOf(event.id),1,1,false, String.valueOf(provider.Id),String.valueOf(event.Id),0,1,false);
+        
+        CalendarController.eventUpdate(String.valueOf(event.id), 1, 10, false, String.valueOf(provider.Id), String.valueOf(event.Id),0, 1,false);
+        CalendarController.eventUpdate(String.valueOf(event.id), 1, 10, false, String.valueOf(provider.Id), String.valueOf(event.Id),0, 2,false);
+        //CalendarController.eventUpdate(String.valueOf(event.id), 1, 10, true, String.valueOf(provider.Id), String.valueOf(event.Id),0, 3,false);
+    } 
+    // Ibirds Shahbaz   
+    @isTest private static void startTest1(){
+              
+        ApexPages.CurrentPage().getParameters().put('dtz','Asia/Kolkata;');
+         Account acc= TestCreateObject.getAccount(); //lk
+        insert acc; //lk
+        
+        Contact customer = TestCreateObject.getCustomer();
+        customer.IsPersonalAccount__c = true;
+        customer.accountid=acc.id; //lk
+        customer.IsProvider__c=false;
+        insert customer;
+    
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+    
+        provider = [SELECT Id, IsProvider__c FROM Contact WHERE Id =: provider.Id];
+    
+        System.assert(provider.IsProvider__c == true);
+    
+        String binMembers = provider.Id;
+    
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';        
+        insert event;
+    
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        Location__c location = TestCreateObject.getLocation();
+        insert location;
+        
+        CalendarSettings__c calendarSettings;
+        System.runAs(usr){
+            calendarSettings = new  CalendarSettings__c();
+            calendarSettings.Calendar_Mode__c = 'Default Mode';
+            calendarSettings.Default_Page_Size__c = 4;
+            calendarSettings.Selected_page_No__c = 1;
+            calendarSettings.MSCal_UserView__c = 'Week';
+            insert calendarSettings;
+        }
+        
+        /*global static Integer eventUpdate(
+            String eventId, 
+            Integer dayDelta, 
+            Integer minuteDelta, 
+            Boolean isResize, 
+            String newPartId, 
+            String oldPartId, 
+            Integer uCase, 
+            Integer recurrenceMode, 
+            Boolean sendNotification
+         ){}*/ 
+         
+        CalendarController.eventUpdate(String.valueOf(event.id),1,1,false, String.valueOf(provider.Id),String.valueOf(event.Id),1,1,true);
+         
+        CalendarController.eventUpdate(String.valueOf(event.id),1,1,true, String.valueOf(provider.Id),String.valueOf(event.Id),1,1,true);
+     
+        ApexPages.StandardController stdController = new ApexPages.StandardController(event);
+        CalendarController controller = new CalendarController(stdController);
+        controller.fetchViewType();
+        controller.changeModeBin();
+        controller.getLocationJSONString();
+        controller.changeModeBin();
+        controller.changeViewToDaily();
+        controller.changeViewToWeek();
+        controller.getPerPageOptions();
+        
+        controller.viewType ='Week';
+        controller.fetchViewType();
+        controller.getLocationJSONString();
+        // Call static method
+        BinSettings__c bs = BinSettings__c.getInstance();
+        bs.ShowCancelEvents__c = true;
+        upsert bs;
+        Test.startTest(); 
+        //CalendarController.eventPopInData('','');
+        CalendarController.getProvidersJSON('','');
+        CalendarController.changeModeDefault();
+        CalendarController.queryAvailability();
+        CalendarController.calendarEventEditSave(event.id,'Booked');
+        CalendarController.calendarEventParticipantReject(event.id,ep.id);
+        CalendarController.getWorkShifts('Default Mode', string.ValueOf(provider.id)+',' , String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+      
+        
+        //Household__c hold = createHousehold();
+        //insert hold; 
+        
+        
+        /*system.runAs(usr){
+            CalendarController.getHoverData(string.ValueOf(provider.id)+',',string.valueOf(date.today()), string.valueOf(date.today().addDays(1)));        
+        }*/
+        
+        // Event__r.StartDateTime__c <= :endDate AND Event__r.EndDateTime__c >= :startDate 
+        
+        // ###### insert event for customer
+        
+        
+        
+        // Testing getHoverData
+        CalendarController.eventUpdate(event.Id, 1, 20, false, provider.Id, event.Id, 1, 0,false);
+        
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 1, 0,false);
+        
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 0,false);
+       
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 2, 1,false);   
+        
+        FieldSets__c fs;
+        System.runAs(usr){
+            fs = new FieldSets__c(HCF__c = 'CreatedDate,Name,IsAllDayEvent__c,Is_Conference_Call__c');
+            insert fs;
+        }
+        
+        event.IsRecurrence__c = false;
+        event.StartDateTime__c = dateTime.now(); 
+        event.EndDateTime__c = dateTime.now().addDays(1); 
+        event.Location_sumo__c = location.id;
+        update event;
+        Test.stopTest();  
+        CalendarController.getHoverData('',string.valueOf(date.today()), string.valueOf(date.today().addDays(1)));
+        CalendarController.getHoverData(string.ValueOf(provider.id)+',', string.valueOf(date.today()), string.valueOf(date.today().addDays(1)));
+        usr.ManageOwnAppointments__c = false;
+        update usr;
+        CalendarController.getHoverData(string.ValueOf(provider.id)+',', string.valueOf(date.today()), string.valueOf(date.today().addDays(1)));
+        
+    }
+    
+    @isTest
+    private static void test11(){
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+    
+        
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';        
+        insert event;
+    
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        CalendarController.calendarEventParticipantConfirm(event.id,ep.id);
+    }
+    
+    @isTest
+    private static void test1(){
+        Account acc= TestCreateObject.getAccount(); //lk
+        insert acc; //lk
+        Contact customer = TestCreateObject.getCustomer();
+        customer.IsPersonalAccount__c = true;
+        customer.accountid=acc.id; //lk
+        customer.IsProvider__c=false;
+        insert customer;
+    
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+
+        Event__c event = TestCreateObject.getEventRecurrence();                
+        event.Status__c = 'Booked';
+        insert event;
+    
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        Location__c location = TestCreateObject.getLocation();
+        insert location;
+         
+        CalendarController.eventUpdate(event.Id, 1, 20, false, acc.Id, event.Id,3, 1,false);    
+        CalendarController.eventUpdate(event.Id, 1, 20, true, acc.Id, event.Id,3, 2,false);
+        CalendarController.eventUpdate(event.Id, 1, 20, true, acc.Id, event.Id,3, 3,false);
+        
+
+        //CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id,0, 1,false);
+    } 
+    // Ibirds Shahbaz 
+    @isTest 
+    private static void startTest2(){
+                
+        ApexPages.CurrentPage().getParameters().put('dtz','Asia/Kolkata@IST;');
+        
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';     
+        insert event;
+        
+        ApexPages.StandardController stdController = new ApexPages.StandardController(event);
+        CalendarController controller = new CalendarController(stdController);
+        
+        ApexPages.CurrentPage().getParameters().put('dtz','America/New_York');
+       
+        ApexPages.StandardController stdController1 = new ApexPages.StandardController(event);
+        CalendarController controller1 = new CalendarController(stdController1);
+    }
+    
+    static testMethod void unitTestShivam(){
+       CalendarController.getEvents('Calendar', '', '', '');
+        Account acc= TestCreateObject.getAccount(); //lk
+                        insert acc; //lk
+        Contact customer = TestCreateObject.getCustomer();
+        customer.IsPersonalAccount__c = true;
+        customer.accountid=acc.id; //lk
+        insert customer;
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId()];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+        
+        provider.User__c = usr.Id;
+        insert provider;
+        
+        provider = [SELECT Id, IsProvider__c FROM Contact WHERE Id =: provider.Id];
+        
+        System.assert(provider.IsProvider__c == true);
+        
+        Location__c location1 = TestCreateObject.getLocation();
+        insert location1;
+        
+        Room__c room = new Room__c(Location__c = location1.id,Phone__c = '9855555555',Description__c ='testRoom');
+        insert room;
+        
+        String binMembers = room.Id;
+        
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';
+        event.RecurrenceStartDate__c =Date.Today();
+        event.RecurrenceEndDate__c =Date.Today().addDays(5);  
+        
+        event.StartDateTime__c = Date.Today();
+        event.EndDateTime__c = Date.Today().addDays(1);
+        event.IsRecurrence__c = false;    
+        event.Room_sumo__c   = room.id;
+        
+        event.Location_sumo__c =location1.Id;
+        event.Assigned_To__c = provider.id;
+
+        insert event;
+        
+        /*
+        Event__c eventForCustomer = TestCreateObject.getEvent();                
+        eventForCustomer.Status__c = 'Booked';      
+        eventForCustomer.IsAllDayEvent__c = true; 
+        
+        eventForCustomer.Location_sumo__c =location1.Id;
+         eventForCustomer.Text_Reminder_Date__c = System.Today();
+         eventForCustomer.Second_Text_Reminder_Date__c = System.Today();
+         eventForCustomer.Text_Reminder__c = '2 Days Prior';
+         eventForCustomer.StartDateTime__c = Datetime.now().addHours(10);
+         eventForCustomer.EndDateTime__c = Datetime.now().addHours(12);
+         eventForCustomer.Email_Reminder__c  = '1 Day Prior';   
+         eventForCustomer.Assigned_To__c = provider.id;
+        insert eventForCustomer;*/
+        
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        usr.ManageOwnAppointments__c = false;
+        update usr;
+        
+       Event__c eventForCustomer = TestCreateObject.getEvent();                
+        eventForCustomer.Status__c = 'Booked';        
+        insert eventForCustomer;
+    
+        EventParticipant__c partForCustomer = TestCreateObject.getEventParticipant();
+        partForCustomer.Event__c = eventForCustomer.Id;
+        partForCustomer.Customer__c = customer.Id;
+        insert partForCustomer;
+        Test.startTest();
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today()));
+        
+        CalendarController.getEvents('Calendar',String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar',String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today()));
+        
+        BinSettings__c bs = BinSettings__c.getInstance();
+        bs.ShowCancelEvents__c = true;
+        upsert bs;
+        
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', string.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', string.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today()));
+        Test.stopTest();
+        CalendarController.eventPopInData(ep.id,event.Id);
+        
+        //CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 1,false);
+        
+         CalendarController.changeModeDefault();
+         CalendarController.updateDefaultPageSize('4');
+           CalendarController.updateSelectedPageNo('4');
+         //controller.changeModeBin();
+         CalendarController.getProvidersJSON(location1.id,'Bin Mode');
+        
+        
+    }
+        
+    static testMethod void unitTest(){
+       
+        CalendarController.getEvents('Calendar', '', '', '');
+        Account acc= TestCreateObject.getAccount(); //lk
+        insert acc; //lk
+        
+        Contact customer = TestCreateObject.getCustomer();
+        customer.IsPersonalAccount__c = true;
+        customer.accountid=acc.id; //lk
+        customer.IsProvider__c=false;
+        insert customer;
+    
+        Contact provider = TestCreateObject.getProvider();
+            provider.IsProvider__c = true;
+            User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+            usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+    
+        provider = [SELECT Id, IsProvider__c FROM Contact WHERE Id =: provider.Id];
+    
+        System.assert(provider.IsProvider__c == true);
+    
+        String binMembers = provider.Id;
+        
+        
+    
+        Event__c event = TestCreateObject.getEvent();
+        //event.User__c = testUser.Id;
+        event.Status__c = 'Booked';
+        insert event;
+        
+        /*EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;*/
+        
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+       
+        Event__c eventForCustomer = TestCreateObject.getEvent();                
+        eventForCustomer.Status__c = 'Booked';      
+        eventForCustomer.IsAllDayEvent__c = true; 
+        insert eventForCustomer;
+    
+        EventParticipant__c partForCustomer = TestCreateObject.getEventParticipant();
+        partForCustomer.Event__c = eventForCustomer.Id;
+        partForCustomer.Customer__c = customer.Id;
+        insert partForCustomer;
+        
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today()));
+        
+        CalendarController.getEvents('Calendar', String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today()));
+        
+        BinSettings__c bs = BinSettings__c.getInstance();
+            bs.ShowCancelEvents__c = true;
+        upsert bs;
+    
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        
+        CalendarController.getEvents('Calendar', String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        Test.startTest();
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 1, 0,false);
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 0,false);
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 1,false);
+        CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 3,false); // Ibirds Nisar Commented 
+        
+        Event__c event12 = TestCreateObject.getEvent();                
+        event12.Status__c = 'Booked';
+        event12.RecurrenceEndDate__c=Date.today().addDays(10);
+        insert event12;
+        
+        
+        /*System.runAs(usr) {
+            CalendarController.eventUpdate(event12.Id, 1, 20, true, provider.Id, event12.Id, 1, 2,false);
+            CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 1, 2,false);
+            CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 1, 3,false);
+            CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 2, 1,false);   
+        }*/
+        
+        
+        CalendarController.binSettingsSave('ShowCancelEvents', true);
+        CalendarController.binSettingsSave('ShowAvailability', false);
+        CalendarController.binSettingsSave('ShowOverlappingShifts', false);
+        CalendarController.binSettingsSave('ShowOverlappingShifts', true);
+        
+        
+        
+        Location__c location = TestCreateObject.getLocation();
+        insert location;
+    
+        Datetime startDateTime = system.now();
+        Datetime endDateTime = system.now().addDays(10);
+        endDateTime = endDateTime.addHours(2);
+    
+        ProviderWorkShift__c pw = TestCreateObject.getProviderWorkShift('RecurringAvailableBlocks');
+            pw.Location_sumo__c = location.Id;
+            pw.Provider__c = provider.Id;
+            pw.StartDate__c = Date.today().addDays(4);
+            pw.EndDate__c = Date.today().addDays(14);
+            pw.StartTime__c = '1:00 pm';
+            pw.EndTime__c = '4:00 pm';
+            pw.StartDateTime__c = startDateTime;
+            pw.EndDateTime__c = endDateTime.addHours(4);
+            pw.Monday__c = true;
+            pw.Tuesday__c = true;
+            pw.Thursday__c = true;
+            pw.Saturday__c = true;
+            pw.IsRecurringAvailableBlocks__c = true;
+            pw.IsSpecificDates__c = false;
+
+        usr.ManageOwnAppointments__c = false;
+        update usr;
+
+        system.runAs(usr){
+            insert pw;
+        }
+         
+        ProviderWorkShift__c pw2 = TestCreateObject.getProviderWorkShift('SpecificDates');
+            pw2.Location_sumo__c = location.Id;
+            pw2.Provider__c = provider.Id;
+            pw2.StartDate__c = Date.today().addDays(2);
+            pw2.EndDate__c = Date.today().addDays(10);
+            pw2.StartTime__c = '5:00 pm';
+            pw2.EndTime__c = '9:00 pm';
+            pw2.IsSpecificDates__c = true;
+            pw2.IsRecurringAvailableBlocks__c = false;
+            pw2.StartDateTime__c = startDateTime.addHours(-2);
+            pw2.EndDateTime__c = endDateTime;
+            pw2.Saturday__c = true;
+            pw2.Friday__c = true;
+            pw2.Wednesday__c = true;
+            pw2.Sunday__c = true;
+            //pw2.Type__c = 'Unavailable';
+        insert pw2;
+         
+        CalendarController.getWorkShifts('Daily', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));//NO PUEDO ENTRAR EN LA GUARDA DE LA LÃNEA 139
+        CalendarController.getWorkShifts('Daily', binMembers, String.valueOf(Date.today()+1), String.valueOf(Date.today().addDays(9)));
+            
+            
+        CalendarSettings__c calendarSettings;
+        System.runAs(usr){
+            //CalendarController.eventPopInData(ep.Id, event.Id);
+            //CalendarController.calendarEventParticipantConfirm(event.Id, ep.Id);
+            //CalendarController.calendarEventParticipantReject(event.Id, ep.Id);
+           /*  calendarSettings = CalendarSettings__c.getInstance(usr.Id);
+            calendarSettings.Calendar_Mode__c = '';
+            calendarSettings.Default_Page_Size__c = 4;
+            calendarSettings.Selected_page_No__c = 1;
+            calendarSettings.MSCal_UserView__c = 'Day';
+            update calendarSettings;*/
+        }       
+    Test.stopTest(); 
+       CalendarController.getWorkShifts('Weekly', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        ApexPages.StandardController stdController = new ApexPages.StandardController(event);
+        CalendarController controller = new CalendarController(stdController);
+        CalendarSettings__c msCalDefaultview;
+        System.runAs(usr){
+             msCalDefaultview=new CalendarSettings__c(Color__c='white',MSCal_DefaultView__c='No Default, Remember Last User Setting');
+            insert msCalDefaultview;
+        }
+
+        controller.fetchViewType();
+        controller.changeViewToDaily();
+        CalendarController.queryAvailability();
+        
+        
+        System.runAs(usr){
+             msCalDefaultview=new CalendarSettings__c(id=msCalDefaultview.id,Color__c='white',MSCal_DefaultView__c='Week');
+            update msCalDefaultview;
+        }
+        controller.fetchViewType();
+        
+        controller.changeViewToDaily();
+        CalendarController.queryAvailability();
+          
+    
+        // Ibirds test Cover
+        CalendarController.calendarEventEditSave(event.id,'booked');                                 
+        controller.changeViewToWeek();
+         CalendarController.changeModeDefault();
+         // Ibirds Shahbaz : Call methods here for test.
+         //CalendarController.changeModeBin();
+         
+         CalendarController.updateDefaultPageSize('4');
+         CalendarController.updateSelectedPageNo('4');
+         controller.changeModeBin();
+         CalendarController.getProvidersJSON(location.id,'Bin Mode');
+         
+         //-----------------
+       /* CalendarSettings__c msCal12=new CalendarSettings__c(Calendar_Mode__c='Default Mode');
+        insert  msCal12;
+         CalendarController.getWorkShifts('Daily', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));//NO PUEDO ENTRAR EN LA GUARDA DE LA LÃNEA 139
+        CalendarController.getWorkShifts('Daily', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getWorkShifts('Weekly', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        */
+            
+         
+         //-----------
+         
+         
+         
+        
+    
+    }
+    
+   
+
+//Ibirds TestMethod for testCover 
+static testmethod void unittest2(){   
+        CalendarController.getEvents('Calendar', '', '', '');
+        Account acc= TestCreateObject.getAccount(); //lk
+                        insert acc; //lk
+        Contact customer = TestCreateObject.getCustomer();
+        customer.IsPersonalAccount__c = true;
+        customer.accountid=acc.id; //lk
+        insert customer;
+        
+        Contact provider = TestCreateObject.getProvider();
+        provider.IsProvider__c = true;
+        User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId()];
+        usr.ManageOwnAppointments__c = true;
+        update usr;
+        
+        provider.User__c = usr.Id;
+        insert provider;
+        
+        provider = [SELECT Id, IsProvider__c FROM Contact WHERE Id =: provider.Id];
+        
+        System.assert(provider.IsProvider__c == true);
+        
+        Location__c location1 = TestCreateObject.getLocation();
+        insert location1;
+        
+        Room__c room = new Room__c(Location__c = location1.id,Phone__c = '9855555555',Description__c ='testRoom');
+        insert room;
+        
+        String binMembers = room.Id;
+        
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';
+        event.RecurrenceStartDate__c =Date.Today();
+        event.RecurrenceEndDate__c =Date.Today().addDays(5);  
+        
+        event.StartDateTime__c = Date.Today();
+        event.EndDateTime__c = Date.Today().addDays(1);
+        event.IsRecurrence__c = false;    
+        event.Room_sumo__c   = room.id;
+        insert event;
+        
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        usr.ManageOwnAppointments__c = false;
+        update usr;
+        
+        Event__c eventForCustomer = TestCreateObject.getEvent();                
+        eventForCustomer.Status__c = 'Booked';        
+        insert eventForCustomer;
+    
+        EventParticipant__c partForCustomer = TestCreateObject.getEventParticipant();
+        partForCustomer.Event__c = eventForCustomer.Id;
+        partForCustomer.Customer__c = customer.Id;
+        insert partForCustomer;
+        Test.startTest();
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today()));
+        
+        CalendarController.getEvents('Calendar',String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar',String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today()));
+        
+        BinSettings__c bs = BinSettings__c.getInstance();
+        bs.ShowCancelEvents__c = true;
+        upsert bs;
+        
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', string.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        CalendarController.getEvents('Calendar', string.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today()));
+        Test.stopTest();
+        CalendarController.eventPopInData(ep.id,event.Id);
+        
+        //CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 1,false);
+        
+         CalendarController.changeModeDefault();
+         CalendarController.updateDefaultPageSize('4');
+           CalendarController.updateSelectedPageNo('4');
+         //controller.changeModeBin();
+         CalendarController.getProvidersJSON(location1.id,'Bin Mode');
+        
+        
+            
+}
+
+ // Ibirds 08 April,2015 Nisar  Added the below method
+static testMethod void unitTest3(){
+
+        CalendarController.getEvents('Calendar', '', '', '');
+    Account acc= TestCreateObject.getAccount(); //lk
+                insert acc; //lk
+        Contact customer = TestCreateObject.getCustomer();
+        customer.IsPersonalAccount__c = true;
+        customer.accountid=acc.id; //lk
+        insert customer;
+    
+        Contact provider = TestCreateObject.getProvider();
+            provider.IsProvider__c = true;
+            User usr = [SELECT Id, ManageOwnAppointments__c FROM User WHERE Id =: UserInfo.getUserId() LIMIT 1];
+            usr.ManageOwnAppointments__c = true;
+        update usr;
+    
+        provider.User__c = usr.Id;
+        insert provider;
+    
+        provider = [SELECT Id, IsProvider__c FROM Contact WHERE Id =: provider.Id];
+    
+        System.assert(provider.IsProvider__c == true);
+    
+        String binMembers = provider.Id;
+    
+        Event__c event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';
+        event.RecurrenceEndDate__c = Date.today().addDays(200);
+        insert event;
+    
+        EventParticipant__c ep = TestCreateObject.getEventParticipant();
+        ep.Event__c = event.Id;
+        ep.Customer__c = provider.Id;
+        insert ep;
+        
+        Event__c eventForCustomer = TestCreateObject.getEvent();                
+        eventForCustomer.Status__c = 'Booked';        
+        insert eventForCustomer;
+    
+        EventParticipant__c partForCustomer = TestCreateObject.getEventParticipant();
+        partForCustomer.Event__c = eventForCustomer.Id;
+        partForCustomer.Customer__c = customer.Id;
+        insert partForCustomer;
+        
+        Test.startTest(); 
+   
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        
+        CalendarController.getEvents('Calendar', String.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+                
+        BinSettings__c bs = BinSettings__c.getInstance();
+            bs.ShowCancelEvents__c = true;
+        upsert bs;
+        CalendarController.changeToBinMode();
+        
+        CalendarController.getEvents('Calendar', binMembers, String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        
+        CalendarController.getEvents('Calendar', string.valueOf(customer.id), String.valueOf(Date.today()), String.valueOf(Date.today().addDays(7)));
+        
+        //CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 0, 3,false);
+        
+        event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';
+        event.RecurrenceEndDate__c = Date.today().addDays(15);
+        event.StartDateTime__c = DateTime.Now().addDays(-15);
+        event.Email_Reminder__c  = '1 Day Prior';
+        upsert event;
+        //CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 1, 2,false);
+        
+        Event__c parentEvent = TestCreateObject.getEvent();
+        parentEvent.StartDateTime__c = Datetime.now(); 
+        insert parentEvent;
+        
+        event = TestCreateObject.getEvent();                
+        event.Status__c = 'Booked';
+        event.RecurrenceEndDate__c = Date.today().addDays(15);
+        event.StartDateTime__c = DateTime.Now().addDays(-15);
+        event.RecurrenceEvent__c = parentEvent.id;
+        upsert event;
+        
+        //CalendarController.eventUpdate(event.Id, 1, 20, true, provider.Id, event.Id, 1, 3,false);
+        CalendarController.binSettingsSave('ShowCancelEvents', true);
+        CalendarController.binSettingsSave('ShowAvailability', false);
+        
+        Location__c location = TestCreateObject.getLocation();
+        insert location;
+    
+        Datetime startDateTime = system.now();
+        Datetime endDateTime = system.now().addDays(30);
+        endDateTime = endDateTime.addHours(2);
+    
+        ProviderWorkShift__c pw = TestCreateObject.getProviderWorkShift('RecurringAvailableBlocks');
+            pw.Location_sumo__c = location.Id;
+            pw.Provider__c = provider.Id;
+            pw.StartDate__c = Date.today();
+            pw.EndDate__c = Date.today().addDays(30);
+            pw.StartTime__c = '1:00 pm';
+            pw.EndTime__c = '4:00 pm';
+            pw.StartDateTime__c = startDateTime;
+            pw.EndDateTime__c = endDateTime.addHours(4);
+            pw.Monday__c = true;
+            pw.Tuesday__c = true;
+            pw.Thursday__c = true;
+            pw.Saturday__c = true;
+            pw.IsRecurringAvailableBlocks__c = true;
+            pw.IsSpecificDates__c = false;
+
+        usr.ManageOwnAppointments__c = false;
+        update usr;
+
+        system.runAs(usr){
+            insert pw;
+        }
+    
+        ProviderWorkShift__c pw2 = TestCreateObject.getProviderWorkShift('SpecificDates');
+            pw2.Location_sumo__c = location.Id;
+            pw2.Provider__c = provider.Id;
+            pw2.StartDate__c = Date.today();
+            pw2.EndDate__c = Date.today().addDays(30);
+            pw2.StartTime__c = '5:00 pm';
+            pw2.EndTime__c = '9:00 pm';
+            pw2.IsSpecificDates__c = true;
+            pw2.IsRecurringAvailableBlocks__c = false;
+            pw2.StartDateTime__c = startDateTime.addHours(-2);
+            pw2.EndDateTime__c = endDateTime;
+            pw2.Saturday__c = true;
+            pw2.Friday__c = true;
+            pw2.Wednesday__c = true;
+            pw2.Sunday__c = true;
+            insert pw2;
+    
+       
+        ApexPages.StandardController stdController = new ApexPages.StandardController(event);
+        CalendarController controller = new CalendarController(stdController);
+        
+        System.runAs(usr){
+            CalendarSettings__c msCalDefaultview=new CalendarSettings__c(Color__c='white',MSCal_DefaultView__c='No Default, Remember Last User Setting');
+            //insert msCalDefaultview;
+        }
+
+        controller.fetchViewType();
+        controller.changeViewToDaily();
+        CalendarController.queryAvailability();
+        
+        Event__c event12 = TestCreateObject.getEvent();                
+        event12.Status__c = 'Booked';
+        insert event12;
+        EventParticipant__c ep12 = TestCreateObject.getEventParticipant();
+        ep12.Event__c = event12.Id;
+        ep12.Customer__c = provider.Id;
+        
+        insert ep12;
+        CalendarController.eventPopInData(ep12.id,event12.id);  
+    
+    
+        // Ibirds test Cover
+        CalendarController.calendarEventEditSave(event.id,'booked');                                 
+        controller.changeViewToWeek();
+         CalendarController.changeModeDefault();
+         CalendarController.updateDefaultPageSize('4');
+           CalendarController.updateSelectedPageNo('4');
+         controller.changeModeBin();
+         CalendarController.getProvidersJSON(location.id,'Bin Mode');
+    Test.stopTest();     
+    
+    }
+}

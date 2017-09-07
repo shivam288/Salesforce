@@ -1,0 +1,43 @@
+/**
+ * SIGNET
+ * @author          Lavanya Aningi
+ * @version         1.0
+ * @date            02/22/2017
+ * @description     Handler class for Store Trigger
+  */
+global with sharing class StoreTriggerHandler { 
+ 
+ /**
+ * SIGNET
+ * @author          Lavanya Aningi
+ * @version         1.0
+ * @date            002/22/2017
+ * @description     Method to Insert/Update insert or update the 'Active Store' flag on Reportic Metrics record when User is created/updated
+  */
+ public void StoreActiveReportingMetrics(List<Stores__c> storeList){
+        
+        Map<String,Stores__c> storedIdMap = new Map<String,Stores__c>();
+        List<Reporting_Metrics__c> rmUpdate = new List<Reporting_Metrics__c>();
+        for(Stores__c st : storeList){
+            storedIdMap.put(st.Global_Store_Id__c,st);
+         }
+        
+        Map<String,List<Reporting_Metrics__c>> mapStoreRM = new Map<String,List<Reporting_Metrics__c>>();
+       
+        for(List<Reporting_Metrics__c> rmetrics : [Select Id,GEM_Store__c,GEM_User__c,GEM_isStoreActive__c from Reporting_Metrics__c where GEM_Store__c IN :storedIdMap.keySet()]){
+        
+            for(Reporting_Metrics__c rm : rmetrics){
+            if(rm.GEM_isStoreActive__c != storedIdMap.get(rm.GEM_Store__c).Is_Store_Active__c){
+            rm.GEM_isStoreActive__c = storedIdMap.get(rm.GEM_Store__c).Is_Store_Active__c;
+            }
+            }
+        try{
+         update rmetrics;
+        } 
+        catch(Exception ex){
+            SystemUtils.createApexExceptionLog(ex,'StoreTriggerHandler ');
+        } 
+            
+    }
+}
+}

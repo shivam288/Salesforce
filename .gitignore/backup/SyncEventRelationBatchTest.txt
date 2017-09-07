@@ -1,0 +1,332 @@
+@isTest
+public class SyncEventRelationBatchTest {
+    public static testmethod void batchTest(){
+          SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        
+        Profile p = [SELECT Id FROM Profile where name='System Administrator']; 
+        User user1 = new User(
+            Username = 'ABCDS@test.com',
+            ProfileId = p.Id,
+            Alias = 'test123',
+            Email = 'ABCDS@test.com',
+            EmailEncodingKey = 'UTF-8',
+            LastName = 'McTesty',
+            CommunityNickname = 'test12345',
+            TimeZoneSidKey = 'America/Los_Angeles',
+            LocaleSidKey = 'en_US',
+            LanguageLocaleKey = 'en_US'
+           
+        );
+        insert user1;
+        
+       User u1 =new user(); 
+        u1.userName = 'test7654@gmamail.com';
+        u1.LastName = 'test';
+        u1.Email = 't@gmail.com';
+        u1.Alias = 'demo';
+        u1.TimeZoneSidKey = 'Asia/Kolkata';
+        u1.LanguageLocaleKey = 'en_US';
+        u1.LocaleSidKey = 'en_US';
+        u1.EmailEncodingKey = 'UTF-8';
+        
+        u1.IsActive = true;
+        u1.ProfileId = p.id;
+        insert u1;
+        
+        Set<id> userIdSet=new Set<id>();
+        userIdSet.add(user1.id);
+        account acc=new account(Name='ABCXYZ', ownerid = user1.id);
+        insert acc; 
+       
+        contact con=new contact();
+        con.firstname='Bob';
+        con.lastname='Jones';
+        con.email='XYZ@gmail.com';
+        con.accountid=acc.id;
+        con.User__c=user1.id;
+        con.isProvider__c=true;
+        con.ownerid = user1.id;
+       
+        con.RecordType = [select id from RecordType where name = 'Provider'];
+        
+       
+        contact cond=new contact();
+        cond.firstname='Dummy';
+        cond.lastname='Contact';
+        cond.email='XYdZ@gmail.com';
+        cond.accountid=acc.id;
+       
+        list<Contact> conlist=new  list<Contact>();
+        conlist.add(con);
+        conlist.add(cond);
+         
+         insert conlist;
+        
+         //creating a record for provider
+         //Contact Provider=TestUtility.createContact('lasgfgfgftName',null,'email@emffgfgfail.com',user1.id,true);
+        
+        Location__c loc=new Location__c();
+        loc.name='Other';
+        insert loc;
+        
+        EventType__c servi=new EventType__c();
+        servi.name='Other';
+        servi.Hours__c=1;
+        servi.Minutes__c=1;
+        
+        insert servi;
+        
+        //creating event
+         Event__c event = new Event__c();
+          event.Status__c = 'Booked';
+         // event.EventType__c = evType.Id;
+          event.Location_sumo__c =loc.Id;
+          event.Text_Reminder_Date__c = System.Today();
+          event.Second_Text_Reminder_Date__c = System.Today();
+          event.Text_Reminder__c = '2 Days Prior';
+          event.StartDateTime__c = Datetime.now().addHours(10);
+          event.EndDateTime__c = Datetime.now().addHours(12);
+          event.Email_Reminder__c  = '1 Day Prior';   
+        insert event;
+        
+        lead l = new lead();
+        l.LastName = 'lstName';
+        l.Company = 'ABCZ';
+        l.Status = 'New - Not Contacted';
+        l.OwnerId = user1.Id;
+        insert l;
+         //creating event
+      
+        Event e = new Event();
+        e.IsAllDayEvent = true;
+        e.subject = 'check';
+        e.ActivityDate = Date.today();
+        e.whoid = con.Id;
+        e.Type = 'Email';
+        e.Description = 'checking';
+        e.OwnerId = user1.id;
+        e.IsRecurrence = true;
+       // e.whatid=con.id;
+        e.RecurrenceStartDateTime = date.newinstance(2015,07,27);
+        e.RecurrenceEndDateOnly = date.newinstance(2015,08,10);
+        e.RecurrenceInterval = 1;
+        e.RecurrenceType = 'RecursDaily';
+        e.Location = 'location';
+        insert e;
+        
+        list<event> eveLst = new list<event>();
+        eveLst.add(e);
+        
+        
+        list<eventrelation> ers = new list<eventrelation>();
+        for(contact cur : [select id from contact where lastname !='Contact']){
+            ers.add(new eventrelation(eventid=e.id,relationid=u1.id,status='Declined'));  
+        }
+       
+        insert ers;
+        
+      /*  list<eventrelation> ers1 = new list<eventrelation>();
+        for(contact cur : [select id from contact where lastname !='Contact']){
+            ers1.add(new eventrelation(eventid=e.id,relationid=Provider.id,status='Declined'));  
+        }
+        insert ers1;*/
+            
+       //creating a record of event participant
+        EventParticipant__c objEventParticipant=new EventParticipant__c ();		//
+        objEventParticipant.Customer__c=cond.id;
+        objEventParticipant.Event__c=event.id;
+         objEventParticipant.Lead__c = l.id;
+        insert objEventParticipant;
+        
+         list<event> eveLst1 = new list<event>();
+        eveLst1.add(e);
+        eveLst1.get(0).id=null;
+        
+        Calendar_Sync__c calSync2=new Calendar_Sync__c();				//
+        calSync2.Active__c=true;
+        calSync2.Start_Date__c=date.newinstance(2015,07,26);
+        calSync2.End_Date__c=date.newinstance(2016,12,30);
+        calSync2.Sync_Direction__c='Both Ways';
+        calSync2.Conflict_Behaviour__c='SUMO always wins';
+        calSync2.Sync_Status__c = 'Not Started';
+        //calSync2.Appointment_Fields__c = 'Description__c,';
+        calSync2.Sync_Recurring_Events_Appoinments__c=true;
+       //calSync2.Event_Fields__c = 'Created_by_Sumo__c';
+        insert calSync2;
+        
+        Calendar_Sync_User__c calSyncusr2=new Calendar_Sync_User__c();		//
+        calSyncusr2.Calendar_Sync__c=calSync2.id;
+        //calSyncusr2.Profile__c=p.id;
+        calSyncusr2.UserConfigurationAssociation__c = user1.id;
+        insert calSyncusr2;
+        
+        calSync2.Sync_Status__c = 'In Progress';
+        update calSync2;
+        
+        SyncEventRelationBatch obj = new SyncEventRelationBatch();			//
+         database.executeBatch(obj);
+        
+    }
+    
+    //shvv Date:21/06/2017
+    
+    public static testmethod void batchTest1(){
+        SUMOSettings__c cs=new SUMOSettings__c(name='SUMO Settings',Private_Crypto_Key__c='nisarnisarnisarnisarnisarnisar12');
+        insert cs;
+        
+        User usr = TestCreateObject.createUser(); 
+        insert usr;
+        User usr1 = TestCreateObject.createUser();
+        usr1.CompanyName='forcebrain';
+        usr1.email='asd@sdf.cvt';
+        usr1.Username='sdf@admin.dev';
+        usr1.CommunityNickname='fzgfd';
+        insert usr1;
+        
+        set<id> ids = new set<id>();
+        ids.add(usr.id);
+        ids.add(usr1.id);
+        
+        contact c = TestCreateObject.getContact1();
+        account a = new account(name='e4r');
+        insert a;
+        c.AccountId=a.id;
+        c.user__c=usr.id;
+        insert c;
+        
+        contact c1 = TestCreateObject.getCustomer();
+        c1.User__c = usr1.id;
+        c1.AccountId = a.id;
+        insert c1;
+        
+        lead l = new lead();
+        l.LastName = 'lstName';
+        l.Company = 'ABCZ';
+        l.Status = 'New - Not Contacted';
+        l.OwnerId = usr.Id;
+        insert l;
+        
+        Event__c ev = TestCreateObject.getEvent();
+        insert ev;
+        
+
+        EventParticipant__c objEventParticipant=new EventParticipant__c ();		//
+        objEventParticipant.Customer__c=c1.id;
+        objEventParticipant.Event__c=ev.id;
+        objEventParticipant.Lead__c = l.id;
+        insert objEventParticipant;
+        
+        Calendar_Sync__c calSync2=new Calendar_Sync__c();				//
+        calSync2.Active__c=true;
+        calSync2.Start_Date__c=date.newinstance(2015,07,26);
+        calSync2.End_Date__c=date.newinstance(2016,12,30);
+        calSync2.Sync_Direction__c='Both Ways';
+        calSync2.Conflict_Behaviour__c='SUMO always wins';
+        calSync2.Sync_Status__c = 'Not Started';
+        calSync2.Appointment_Fields__c = 'IsSelfSchedule__c'; 		//Description__c,EndDateTime__c,Participant_Info__c
+        calSync2.Sync_Recurring_Events_Appoinments__c=true;
+       //calSync2.Event_Fields__c = 'Created_by_Sumo__c';
+        insert calSync2;
+        
+        withOutSharingBatchHelper.appointmentToEventBatchProcess(calSync2,ids,datetime.now(),datetime.now().addminutes(12));
+        //
+        calSync2.Sync_Recurring_Events_Appoinments__c=false;
+        update calSync2; 
+        withOutSharingBatchHelper.appointmentToEventBatchProcess(calSync2,ids,datetime.now(),datetime.now()+12);
+		//withOutSharingBatchHelper.eventToAppoinmentBatchProcess(calSync2,ids,datetime.now(),datetime.now()+12);
+        calSync2.Appointment_Fields__c ='';
+        calSync2.name='se23';
+        calSync2.Sync_Recurring_Events_Appoinments__c=true;
+        update calSync2;
+        withOutSharingBatchHelper.appointmentToEventBatchProcess(calSync2,ids,datetime.now()-2,datetime.now()+15);
+		withOutSharingBatchHelper.eventToAppoinmentBatchProcess(calSync2,ids,datetime.now(),datetime.now().addDays(13));
+        calSync2.Appointment_Fields__c = 'IsSelfSchedule__c'; // EndDateTime__c';
+        calSync2.Event_Fields__c='IsVisibleInSelfService';		//
+        update calSync2;
+         
+        //for method 2  
+        list<event__c> lie = new list<event__c>();
+        ev.IsAllDayEvent__c=true;
+        ev.Private__c=false; 
+        ev.ActivityDate__c=Date.today();
+        update ev;
+        lie.add(ev);
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        
+        
+        ev.IsAllDayEvent__c=true;
+        ev.ActivityDate__c=Date.today();
+        ev.Service_Text__c='677gh';
+        ev.Location_Text__c='India';
+        ev.Showtime__c = 'Out of Office';
+        ev.User_web_conference_details__c='kkc';
+        ev.Description__c='erer';
+        ev.WhatId_Object__c='Contact';
+        ev.whatId__c=string.valueOf(c.id);
+        ev.IsRecurrence__c=true; 
+        ev.RecurrenceType__c = 'RecursDaily';
+        ev.RecurrenceStartDate__c=date.today();
+        ev.RecurrenceEndDate__c=date.today()+45;
+        update ev;
+        //lie.add(ev);		ev.EventParticipants__r  RecurrenceType__c == 'RecursEveryWeekday'  RecurrenceType__c == 'RecursWeekly'
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        
+        ev.RecurrenceType__c = 'RecursWeekly';
+        ev.onMonday__c=true;
+        ev.onTuesday__c=true;
+        ev.onWednesday__c=true;
+        ev.onThursday__c=true;
+        ev.onFriday__c=true;
+        ev.onSaturday__c=true;
+        ev.onSunday__c=true;
+        ev.IsAllDayEvent__c=true; 
+        update ev;
+      
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+     	ev.RecurrenceType__c = 'RecursEveryWeekday';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        ev.RecurrenceType__c = 'RecursMonthly';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        ev.RecurrenceType__c = 'RecursMonthlyNth';
+        ev.onDay__c=true;
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        
+        ev.RecurrenceInstance__c='1st';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        ev.RecurrenceInstance__c='2nd';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        ev.RecurrenceInstance__c='3rd';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        ev.RecurrenceInstance__c='4th';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        
+        ev.RecurrenceType__c = 'RecursYearly';
+        ev.RecurrenceDayOfMonth__c=1;
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        ev.RecurrenceType__c = 'RecursYearlyNth';
+        update ev;
+        withOutSharingBatchHelper.appointmentToEventSyncingProcess(calSync2,lie);
+        
+        event e1 = new event(subject='Email',StartDateTime=datetime.now(),EndDateTime=datetime.now().addDays(13));
+        insert e1;
+        list<event> liev = new list<event>();
+        liev.add(e1);
+        //withOutSharingBatchHelper.eventToAppoinmentSyncingProcess(calSync2,liev);
+        
+        
+        calSync2.Sync_Status__c = 'In Progress';
+        update calSync2;
+        
+        SyncEventRelationBatch obj = new SyncEventRelationBatch();			//
+         database.executeBatch(obj);
+    }
+}

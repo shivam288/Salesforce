@@ -1,0 +1,249 @@
+ViewData
+sortExpression
+limit :list_size  offset :counter
+ 
+-------------------------------********************************________________----------------------
+
+
+<apex:page controller="CalendarSyncController" standardStylesheets="false" showHeader="false">
+    <html xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <head>
+            <link rel="stylesheet" href="{!URLFOR($Resource.LDS, '/assets/styles/salesforce-lightning-design-system.min.css')}"/>
+            <apex:includeScript value="{!URLFOR($Resource.JqueryUi, '/js/jquery-1.7.2.min.js')}"/>
+            
+            <style> 
+                body , td{
+                    font-family: "Salesforce Sans",Arial,sans-serif !important;
+                }
+            </style>
+            <script>
+                var j$ = jQuery.noConflict();
+                
+                j$(document).ready(function(){
+                   /*
+                       below line of code add image icon in front of heading.
+                   */
+                    
+                    j$('.content').find('img').remove('img');
+                    j$('.content').find('h1').append('<span style="float:left;" class="slds-icon_container slds-icon-custom-custom3 slds-m-right--small"><svg aria-hidden="true" class="slds-icon slds-icon--medium slds-m-around--xx-small"><use xlink:href="{!URLFOR($Resource.LDS, '/assets/icons/utility-sprite/svg/symbols.svg#settings')}"></use></svg></span>')
+                });
+                       
+                function UndoSite(ids) {
+                   Visualforce.remoting.Manager.invokeAction('{!$RemoteAction.CalendarSyncController.getUndoSyncCount}', 
+                    ids,function(result, event){
+                        if (event.status) {
+                            j$("span#syncCount").text(result);
+                            j$('#undoSyncIds').val(ids);
+                            j$('.slds-backdrop').addClass('slds-backdrop--open');
+                            j$('#undoSyncDialog').addClass('slds-fade-in-open');
+                        } else {
+                            j$("span#syncCount").text("0");
+                        }
+                   });
+                }
+                function DelSite(ids,name) {
+                    j$('.slds-backdrop').addClass('slds-backdrop--open');
+                    j$('#popUpdialogueDel').addClass('slds-fade-in-open');
+                    //j$('.ui-widget-header').css('background' , '#0EA4CD');
+                    j$('#syncName').html(name);
+                    j$('#delid').val(ids);
+                }
+                        
+                function deleteCall(){
+                    var id = j$('#delid').val();
+                    DeleteSite(id);
+                    j$('#popUpdialogueDel').addClass('slds-fade-in-open');
+                    j$('.slds-backdrop').addClass('slds-hide');
+                }
+                        
+                function dismis(){
+                    j$('#popUpdialogueDel, #undoSyncDialog').removeClass('slds-fade-in-open');
+                    j$('.slds-backdrop').removeClass('slds-backdrop--open');
+                }
+                
+                function undoYes(){
+                    var ids = j$('#undoSyncIds').val();
+                    undoCalSync(ids);                            
+                    j$('#undoSyncDialog').removeClass('slds-fade-in-open');
+                    j$('.slds-backdrop').removeClass('slds-backdrop--open');
+                }
+            </script>
+        </head>
+        <body>
+            <div class="slds">
+                <apex:form id="form" styleClass="slds-form-element">
+                
+                  <!--    Delete popup    -->
+                  <div id="popUpdialogueDel" role="alertdialog" tabindex="-1" aria-labelledby="prompt-heading-id" aria-describedby="prompt-message-wrapper" class="slds-modal slds-modal--prompt">
+                    <div class="slds-modal__container">
+                        <div class="slds-modal__header slds-theme--error slds-theme--alert-texture">
+                            <button class="slds-button slds-modal__close slds-button--icon-inverse" onclick="dismis();return false;" title="Close">
+                                <svg aria-hidden="true" class="slds-button__icon slds-button__icon--large">
+                                    <use xlink:href="{!URLFOR($Resource.LDS, '/assets/icons/utility-sprite/svg/symbols.svg#close')}"></use>
+                                </svg>
+                            </button>
+                            <h2 class="slds-text-heading--medium" id="prompt-heading-id">Calendar Sync Settings Notification</h2>
+                        </div>
+                        <div class="slds-modal__content slds-p-around--medium">
+                            <div>
+                                <input type="hidden" id="delid"/>
+                                <p>You are about to delete the Sync Configuration: <h1 id="syncName"></h1>.</p>
+                                <p>If you would like to undo the already sync&#39;d appointments, click Cancel, then click Undo Sync.  If you would like to inactivate this sync configuration, click Cancel, then click Edit and uncheck Active.</p>
+                            </div>
+                        </div>
+                        <div class="slds-modal__footer slds-theme--default">
+                            <button class="slds-button slds-button--brand" onclick="deleteCall();">Delete</button>
+                            <button class="slds-button slds-button--neutral" onclick="dismis();return false;">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="slds-backdrop"></div>
+                <!--/    Delete popup end    /-->
+                
+                <!--    undo sync popup    -->
+                  <div id="undoSyncDialog" role="alertdialog" tabindex="-1" aria-labelledby="prompt-heading-id" aria-describedby="prompt-message-wrapper" class="slds-modal slds-modal--prompt">
+                    <div class="slds-modal__container">
+                        <div class="slds-modal__header slds-theme--error slds-theme--alert-texture">
+                            <button class="slds-button slds-modal__close slds-button--icon-inverse" onclick="dismis();return false;" title="Close">
+                                <svg aria-hidden="true" class="slds-button__icon slds-button__icon--large">
+                                    <use xlink:href="{!URLFOR($Resource.LDS, '/assets/icons/utility-sprite/svg/symbols.svg#close')}"></use>
+                                </svg>
+                            </button>
+                            <h2 class="slds-text-heading--medium" id="prompt-heading-id">Calendar Sync Settings Notification</h2>
+                        </div>
+                        <div class="slds-modal__content slds-p-around--medium">
+                            <div>
+                                <input type="hidden" id="undoSyncIds"/>
+                                <p>SUMO is about to undo <span id="syncCount">0</span> synced records.  SUMO will NOT delete the original records that existed on the SUMO or Salesforce calendar prior to sync.  Would you like to proceed with the SYNC UNDO?</p>
+                            </div>
+                        </div>
+                        <div class="slds-modal__footer slds-theme--default">
+                            <button class="slds-button slds-button--brand" onclick="undoYes();return false;">Yes</button>
+                            <button class="slds-button slds-button--neutral" onclick="dismis();return false;">No</button>
+                        </div>
+                    </div>
+                </div>
+                <!--/    undo sync popup    /-->
+                
+                
+                    <apex:actionFunction action="{!deleteCalendarSysnc}" name="DeleteSite" reRender="form">
+                        <apex:param name="menu" assignto="{!ids}" value="" />
+                        <!--<apex:param name="menu" assignto="{!name}" value="" />-->
+                    </apex:actionFunction>
+                    <apex:actionFunction action="{!undoCalendarSync}" name="undoCalSync" reRender="form">
+                        <apex:param name="menu" assignto="{!ids}" value="" />
+                    </apex:actionFunction>
+                    
+                    <div class="slds-grid slds-wrap slds-grid--align-center slds-p-vertical--xx-large">
+                        <div class="slds-col slds-size--1-of-1">
+                            <b>
+                                <apex:outputText styleClass="slds-text-heading--medium font-bold slds-p-around--medium slds-m-bottom--large" value="Calendar Sync Configurations">
+                                </apex:outputText>
+                            </b>
+                            <apex:commandButton action="{!newCalendarSysnc}" value=" New Configuration " styleClass="New Configuration slds-button slds-button--brand slds-float--right slds-m-right--large"/>
+                            <!--<button class="slds-button slds-button--brand" style="margin-left:23rem;">New Configuration</button>-->
+                        </div>
+                        
+                        <div class="slds-col slds-size--1-of-1 slds-p-top--large slds-p-vertical--large">
+                            <div class="slds-grid slds-nowrap slds-grid--align-center">
+                                <div class="slds-col slds-text-align--right slds-size--1-of-1 slds-p-horizontal--small">
+                                    <table class="slds-table slds-table--bordered slds-table--cell-buffer">
+                                        <thead>
+                                            <tr class="slds-text-title--caps">
+                                                <th scope="col">
+                                                    <div class="slds-truncate" title="Action">Action</div>
+                                                 </th>
+                                                 <th scope="col">
+                                                    <div class="slds-truncate" title="Sync #">Sync #</div>
+                                                 </th>
+                                                 <th scope="col">
+                                                    <div class="slds-truncate" title="Sync Name">Sync Name</div>
+                                                 </th>
+                                                 <th scope="col">
+                                                    <div class="slds-truncate" title="Status">Status</div>
+                                                 </th>
+                                                 <th scope="col">
+                                                    <div class="slds-truncate" title="Created By">Created By</div>
+                                                 </th>
+                                                 <th scope="col">
+                                                    <div class="slds-truncate" title="Created Date">Created Date</div>
+                                                 </th>
+                                                 <th scope="col">
+                                                    <div class="slds-truncate" title="Action">Sync - Conflict Log</div>
+                                                 </th>
+                                             </tr>
+                                        </thead>
+                                        <tbody>
+                                            <apex:repeat var="row" value="{!listCalendarSyncWrapper}">
+                                                <tr>
+                                                    <th scope="row" data-label="Action">
+                                                        <div class="slds-truncate" title="Action">
+                                                            <a href="/apex/settings?id={!row.id}&page=CalendarSyncSettings" style="font-weight:bold">Edit</a>
+                                                           <!-- <apex:outputLink title="" value="/apex/settings?id={!row.id}&page=CalendarSyncSettings" style="font-weight:bold">Edit</apex:outputLink>-->&nbsp;|&nbsp;
+                                                            <apex:outputLink title="" style="font-weight:bold" onclick="DelSite('{!row.id}','{!JSENCODE(row.name)}');return false;">Del</apex:outputLink>&nbsp;
+                                                            <apex:outputLink title="" style="font-weight:bold" onclick="UndoSite('{!row.id}');return false;" rendered="{!row.flag}">|&nbsp; &nbsp; Undo Sync</apex:outputLink> 
+                                                        </div>
+                                                    </th>
+                                                    <th scope="row" data-label="Sync #">
+                                                        <div class="slds-truncate" title="Sync #">
+                                                            {!row.index}
+                                                        </div>
+                                                    </th>
+                                                    <th scope="row" data-label="Sync Name">
+                                                        <div class="slds-truncate" title="Sync Name">
+                                                            {!row.name}
+                                                        </div>
+                                                    </th>
+                                                    <th scope="row" data-label="Status">
+                                                        <div class="slds-truncate" title="Status">
+                                                            {!row.status}
+                                                        </div>
+                                                    </th>
+                                                    <th scope="row" data-label="Created By">
+                                                        <div class="slds-truncate" title="Created By">
+                                                            {!row.CreatedBy}
+                                                        </div>
+                                                    </th>
+                                                    <th scope="row" data-label="Created Date">
+                                                        <div class="slds-truncate" title="Created Date">
+                                                            {!row.CreatedDate}
+                                                        </div>
+                                                    </th><th scope="row" data-label="Sync - Conflict Log">
+                                                        <div class="slds-truncate" title="Sync - Conflict Log">
+                                                           <!-- <apex:outputLink value="settings?CS={!row.id}&page=SyncConflict">
+                                                                Click Here to View Detail
+                                                            </apex:outputLink>-->
+                                                            <a href="/apex/settings?CS={!row.id}&page=SyncConflict">Click Here to View Detail</a>
+                                                        </div>
+                                                    </th>
+                                                </tr>
+                                            </apex:repeat>
+                                        </tbody>
+                                    </table>                                
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                    
+                    <!-- SAVE & CANCEL BUTTONS -->
+                    <!--<div class="slds-docked-form-footer">
+                        <div class="slds-col ">
+                            <apex:commandButton action="{!newCalendarSysnc}" value=" New Configuration " styleClass="New Configuration slds-button slds-button--brand slds-float--right slds-m-right--large"/>
+                        </div>
+                    </div>-->
+                    <!-- / SAVE & CANCEL BUTTONS -->
+                    
+                </apex:form>
+                <!--<div id="popUpdialogue" style="display: none;">
+                    <p>SUMO is about to undo <span id="syncCount">0</span> synced records.  SUMO will NOT delete the original records that existed on the SUMO or Salesforce calendar prior to sync.  Would you like to proceed with the SYNC UNDO?</p>
+                </div>-->
+                <!--<div id="popUpdialogueDel" style="display: none;">
+                    <p>You are about to delete the Sync Configuration: <h1 id="syncName"></h1>.</p>
+                    <p>If you would like to undo the already sync&#39;d appointments, click Cancel, then click Undo Sync.  If you would like to inactivate this sync configuration, click Cancel, then click Edit and uncheck Active.</p>
+                </div>-->
+                
+            </div>
+        </body>
+    </html>
+</apex:page>
